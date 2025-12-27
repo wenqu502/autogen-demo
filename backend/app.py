@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, send_from_directory
 from flask_cors import CORS
 from models import db, Agent, Conversation, Message
 from autogen_service import run_autogen_chat
@@ -29,7 +29,9 @@ with app.app_context():
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    # 使用 send_from_directory 直接发送文件，绕过 Jinja2 模板引擎
+    # 这样 Vue.js 的 {{ }} 语法就不会被误判为 Jinja2 语法错误
+    return send_from_directory(os.path.join(app.root_path, 'templates'), 'index.html')
 
 @app.route('/api/agents', methods=['GET'])
 def get_agents():
