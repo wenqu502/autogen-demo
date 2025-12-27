@@ -1,439 +1,482 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="cupcake">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AutoGen 多智能体协作平台</title>
+    <title>AutoGen Studio Lite</title>
+    <!-- Tailwind + DaisyUI -->
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Axios -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <!-- Markdown-it -->
+    <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.0.0/dist/markdown-it.min.js"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <style>
-        :root {
-            --primary-color: #3b82f6;
-            --bg-color: #f3f4f6;
-            --card-bg: #ffffff;
-            --text-color: #1f2937;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .tabs {
-            display: flex;
-            justify-content: center;
-            margin-bottom: 20px;
-            gap: 10px;
-        }
-
-        .tab-btn {
-            padding: 10px 20px;
-            background-color: #e5e7eb;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 600;
-        }
-
-        .tab-btn.active {
-            background-color: var(--primary-color);
-            color: white;
-        }
-
-        .tab-content {
-            display: none;
-            background: var(--card-bg);
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-
-        .tab-content.active {
-            display: block;
-        }
-
-        /* Forms */
-        .form-group {
-            margin-bottom: 15px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 500;
-        }
-
-        input[type="text"], textarea {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
-            box-sizing: border-box;
-        }
-
-        button.btn-primary {
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-        }
-
-        button.btn-danger {
-            background-color: #ef4444;
-            color: white;
-            border: none;
-            padding: 4px 8px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.9em;
-        }
-
-        /* Agent List */
-        .agent-list {
-            margin-top: 20px;
-        }
-        
-        .agent-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px;
-            border-bottom: 1px solid #eee;
-        }
-
-        /* Chat */
-        .chat-layout {
-            display: flex;
-            gap: 20px;
-            height: 70vh;
-        }
-
-        .agent-sidebar {
-            width: 250px;
-            border-right: 1px solid #eee;
-            padding-right: 10px;
-            overflow-y: auto;
-        }
-
-        .chat-main {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .messages-area {
-            flex: 1;
-            overflow-y: auto;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 15px;
-            background-color: #f9fafb;
-        }
-
-        .message {
-            margin-bottom: 10px;
-            padding: 10px;
-            border-radius: 8px;
-            max-width: 80%;
-        }
-
-        .message.user {
-            background-color: #dbeafe;
-            margin-left: auto;
-            color: #1e40af;
-        }
-
-        .message.agent {
-            background-color: white;
-            border: 1px solid #e5e7eb;
-            margin-right: auto;
-        }
-
-        .message-header {
-            font-size: 0.8em;
-            font-weight: bold;
-            margin-bottom: 4px;
-            opacity: 0.7;
-        }
-
-        .input-area {
-            display: flex;
-            gap: 10px;
-        }
-
-        .loading {
-            text-align: center;
-            color: #6b7280;
-            font-style: italic;
-            display: none;
-        }
+        [v-cloak] { display: none; }
+        .markdown-body p { margin-bottom: 0.5em; }
+        .markdown-body pre { background-color: #2d2d2d; color: #ccc; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; }
+        .chat-bubble.markdown-body { max-width: 100%; overflow-x: hidden; }
     </style>
 </head>
-<body>
-
-<div class="container">
-    <header>
-        <h1>AutoGen 多智能体协作平台</h1>
-        <p>无 NPM 依赖版 (Python Native UI)</p>
-    </header>
-
-    <div class="tabs">
-        <button class="tab-btn active" onclick="switchTab('agents')">智能体设置</button>
-        <button class="tab-btn" onclick="switchTab('chat')">对话协作</button>
-    </div>
-
-    <!-- Agent Settings Tab -->
-    <div id="agents" class="tab-content active">
-        <h2>创建新智能体</h2>
-        <div class="form-group">
-            <label>名称 (Name)</label>
-            <input type="text" id="agentName" placeholder="例如: Coder, ProductManager">
-        </div>
-        <div class="form-group">
-            <label>系统提示词 (System Message)</label>
-            <textarea id="agentSystemMsg" rows="4" placeholder="定义智能体的角色和行为..."></textarea>
-        </div>
-        <button class="btn-primary" onclick="createAgent()">创建智能体</button>
-
-        <h3>已有智能体列表</h3>
-        <div id="agentList" class="agent-list">
-            <!-- Loaded via JS -->
-        </div>
-    </div>
-
-    <!-- Chat Tab -->
-    <div id="chat" class="tab-content">
-        <div class="chat-layout">
-            <div class="agent-sidebar">
-                <h3>选择参与者</h3>
-                <div id="chatAgentList">
-                    <!-- Checkboxes loaded via JS -->
+<body class="bg-base-200 h-screen overflow-hidden text-base-content">
+    <div id="app" v-cloak class="flex h-full w-full">
+        
+        <!-- Sidebar: Navigation & Agents -->
+        <div class="w-80 bg-base-100 border-r border-base-300 flex flex-col shadow-xl z-10">
+            <div class="p-4 border-b border-base-300 bg-primary text-primary-content flex items-center gap-2">
+                <i class="fa-solid fa-robot text-2xl"></i>
+                <div>
+                    <h1 class="font-bold text-lg">AutoGen Studio</h1>
+                    <p class="text-xs opacity-80">Multi-Agent Orchestration</p>
                 </div>
             </div>
-            <div class="chat-main">
-                <div id="messagesArea" class="messages-area">
-                    <div style="text-align: center; color: #aaa; margin-top: 20px;">
-                        请在左侧选择智能体，并在下方输入任务开始协作。
+
+            <!-- Tab Switcher -->
+            <div class="tabs tabs-boxed m-2 bg-base-200">
+                <a class="tab flex-1" :class="{'tab-active': currentTab === 'chat'}" @click="currentTab = 'chat'">
+                    <i class="fa-solid fa-comments mr-2"></i> 对话
+                </a>
+                <a class="tab flex-1" :class="{'tab-active': currentTab === 'agents'}" @click="currentTab = 'agents'">
+                    <i class="fa-solid fa-users-gear mr-2"></i> 智能体
+                </a>
+            </div>
+
+            <!-- Agents List (Selectable for Chat) -->
+            <div v-if="currentTab === 'chat'" class="flex-1 overflow-y-auto p-2">
+                <div class="text-xs font-bold text-base-content/50 uppercase px-2 mb-2">选择参与的智能体</div>
+                <div v-if="loadingAgents" class="flex justify-center p-4"><span class="loading loading-spinner"></span></div>
+                <div v-else class="space-y-2">
+                    <label v-for="agent in agents" :key="agent.id" 
+                           class="flex items-center p-3 rounded-lg hover:bg-base-200 cursor-pointer border border-transparent hover:border-base-300 transition-all"
+                           :class="{'bg-primary/10 border-primary': selectedAgentIds.includes(agent.id)}">
+                        <input type="checkbox" :value="agent.id" v-model="selectedAgentIds" class="checkbox checkbox-primary checkbox-sm mr-3" />
+                        <div class="flex-1">
+                            <div class="font-bold">{{ agent.name }}</div>
+                            <div class="text-xs opacity-60 truncate">{{ agent.config?.description || 'No description' }}</div>
+                        </div>
+                    </label>
+                    <div v-if="agents.length === 0" class="text-center p-4 opacity-50 text-sm">
+                        暂无智能体，请先去配置
                     </div>
                 </div>
-                <div id="loading" class="loading">智能体正在思考和协作中，请稍候...</div>
-                <div class="input-area">
-                    <textarea id="chatInput" rows="2" style="flex:1" placeholder="输入你的任务..."></textarea>
-                    <button class="btn-primary" onclick="sendMessage()">发送</button>
-                </div>
             </div>
-        </div>
-    </div>
-</div>
 
-<script>
-    // =========================================================================
-    // 重要配置：后端 API 地址
-    // 部署步骤：
-    // 1. 先部署后端到 Render，获取类似 https://xxx.onrender.com 的地址
-    // 2. 将下方地址替换为你的 Render 地址
-    // 3. 将本文件部署到 EdgeOne Pages
-    // =========================================================================
-    
-    // 默认连接本地后端 (调试用)
-    // const API_BASE = 'http://127.0.0.1:5000/api'; 
-    
-    // 如果你已经部署了后端，请取消下方注释并填入真实地址：
-    const API_BASE = 'https://autogen-demo-4tl4.onrender.com/api'; 
-    // (注意：上面这个是示例地址，你需要替换为你自己的)
-
-    // 自动检测逻辑：如果当前页面是 https 协议，尝试连接 Render 后端
-    // 如果是 http://127.0.0.1，连接本地后端
-    function getApiBase() {
-        if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') {
-            return '/api'; // 使用相对路径，由 Flask 代理或直接服务
-        }
-        // 生产环境 EdgeOne
-        return 'https://autogen-demo-4tl4.onrender.com/api';
-    }
-
-    // const API_BASE = getApiBase(); // 暂时手动指定，方便用户理解
-
-    // Tab Switching
-    function switchTab(tabId) {
-        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-        
-        document.getElementById(tabId).classList.add('active');
-        // Find the button that calls this function (approximate)
-        const btns = document.querySelectorAll('.tab-btn');
-        if (tabId === 'agents') btns[0].classList.add('active');
-        if (tabId === 'chat') btns[1].classList.add('active');
-
-        if (tabId === 'chat') {
-            loadChatAgents();
-        } else {
-            loadAgents();
-        }
-    }
-
-    // Load Agents
-    async function loadAgents() {
-        try {
-            const res = await fetch(`${API_BASE}/agents`);
-            const agents = await res.json();
-            const list = document.getElementById('agentList');
-            list.innerHTML = '';
-            
-            agents.forEach(agent => {
-                const div = document.createElement('div');
-                div.className = 'agent-item';
-                div.innerHTML = `
-                    <div>
-                        <strong>${agent.name}</strong>
-                        <div style="font-size:0.9em; color:#666; max-width: 500px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                            ${agent.system_message || 'No system message'}
+             <!-- Agents Management List -->
+             <div v-if="currentTab === 'agents'" class="flex-1 overflow-y-auto p-2">
+                <div class="space-y-3">
+                    <div v-for="agent in agents" :key="agent.id" class="card bg-base-100 shadow-sm border border-base-200 compact">
+                        <div class="card-body p-4">
+                            <div class="flex justify-between items-start">
+                                <h3 class="card-title text-base">{{ agent.name }}</h3>
+                                <div class="flex gap-1">
+                                    <button @click="editAgent(agent)" class="btn btn-ghost btn-xs text-info"><i class="fa-solid fa-pen"></i></button>
+                                    <button @click="deleteAgent(agent.id)" class="btn btn-ghost btn-xs text-error"><i class="fa-solid fa-trash"></i></button>
+                                </div>
+                            </div>
+                            <p class="text-xs opacity-70 line-clamp-2">{{ agent.system_message }}</p>
+                            <div class="mt-2 flex flex-wrap gap-1">
+                                <span class="badge badge-xs badge-outline">{{ agent.config?.human_input_mode || 'NEVER' }}</span>
+                                <span class="badge badge-xs badge-outline">Temp: {{ agent.config?.temperature || 0.7 }}</span>
+                            </div>
                         </div>
                     </div>
-                    <button class="btn-danger" onclick="deleteAgent(${agent.id})">删除</button>
-                `;
-                list.appendChild(div);
-            });
-        } catch (err) {
-            console.error(err);
-        }
-    }
+                </div>
+                <button @click="openCreateModal" class="btn btn-primary w-full mt-4">
+                    <i class="fa-solid fa-plus"></i> 新建智能体
+                </button>
+             </div>
+        </div>
 
-    // Create Agent
-    async function createAgent() {
-        const name = document.getElementById('agentName').value;
-        const system_message = document.getElementById('agentSystemMsg').value;
-        
-        if (!name) return alert('Name is required');
-
-        try {
-            await fetch(`${API_BASE}/agents`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, system_message })
-            });
-            document.getElementById('agentName').value = '';
-            document.getElementById('agentSystemMsg').value = '';
-            loadAgents();
-        } catch (err) {
-            alert('Failed to create agent');
-        }
-    }
-
-    // Delete Agent
-    async function deleteAgent(id) {
-        if(!confirm('Are you sure?')) return;
-        try {
-            await fetch(`${API_BASE}/agents/${id}`, { method: 'DELETE' });
-            loadAgents();
-        } catch (err) {
-            alert('Failed to delete');
-        }
-    }
-
-    // Chat Logic
-    async function loadChatAgents() {
-        try {
-            const res = await fetch(`${API_BASE}/agents`);
-            const agents = await res.json();
-            const container = document.getElementById('chatAgentList');
-            container.innerHTML = '';
-
-            if (agents.length === 0) {
-                container.innerHTML = '<p style="font-size:0.9em; color:red">请先在设置页添加智能体</p>';
-                return;
-            }
-
-            agents.forEach(agent => {
-                const label = document.createElement('label');
-                label.style.display = 'block';
-                label.style.marginBottom = '5px';
-                label.innerHTML = `
-                    <input type="checkbox" value="${agent.id}" class="agent-checkbox">
-                    ${agent.name}
-                `;
-                container.appendChild(label);
-            });
-        } catch (err) {
-            console.error(err);
-        }
-    }
-
-    async function sendMessage() {
-        const input = document.getElementById('chatInput');
-        const message = input.value.trim();
-        const checkboxes = document.querySelectorAll('.agent-checkbox:checked');
-        const agentIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
-
-        if (!message) return;
-        if (agentIds.length === 0) return alert('请至少选择一个智能体参与对话');
-
-        // UI Update
-        const msgsArea = document.getElementById('messagesArea');
-        // Clear placeholder if exists
-        if (msgsArea.innerText.includes('请在左侧选择智能体')) msgsArea.innerHTML = '';
-
-        // Append User Message
-        appendMessage('User', message, 'user');
-        input.value = '';
-        
-        // Show loading
-        document.getElementById('loading').style.display = 'block';
-
-        try {
-            const res = await fetch(`${API_BASE}/chat`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message, agent_ids: agentIds })
-            });
-            const data = await res.json();
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col bg-base-100 relative">
             
-            if (data.error) {
-                appendMessage('System', `Error: ${data.error}`, 'agent');
-            } else if (data.messages) {
-                // Filter and display
-                data.messages.forEach(msg => {
-                    if (msg.role !== 'system') {
-                        appendMessage(msg.name || msg.role, msg.content, 'agent');
+            <!-- Chat View -->
+            <div v-if="currentTab === 'chat'" class="flex-1 flex flex-col h-full">
+                <!-- Chat Header -->
+                <div class="navbar bg-base-100 border-b border-base-200 px-4 min-h-[4rem]">
+                    <div class="flex-1">
+                        <span class="font-bold text-lg">Group Chat</span>
+                        <span class="ml-2 text-sm opacity-50" v-if="selectedAgentIds.length > 0">
+                            ({{ selectedAgentIds.length }} Agents Active)
+                        </span>
+                    </div>
+                    <div class="flex-none">
+                        <button @click="clearChat" class="btn btn-ghost btn-sm text-error" title="清空对话">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Messages Area -->
+                <div class="flex-1 overflow-y-auto p-4 space-y-4" ref="chatContainer">
+                    <div v-if="messages.length === 0" class="flex flex-col items-center justify-center h-full text-base-content/30">
+                        <i class="fa-solid fa-comments text-6xl mb-4"></i>
+                        <p>选择智能体并开始对话</p>
+                    </div>
+                    
+                    <div v-for="(msg, index) in messages" :key="index" class="chat" 
+                         :class="msg.role === 'user' ? 'chat-end' : 'chat-start'">
+                        <div class="chat-header opacity-50 text-xs mb-1">
+                            {{ msg.name || msg.role }} <time class="text-[10px] ml-1">{{ formatTime(msg.timestamp) }}</time>
+                        </div>
+                        <div class="chat-bubble shadow-md" 
+                             :class="{'chat-bubble-primary': msg.role === 'user', 'chat-bubble-secondary': msg.role !== 'user'}">
+                            <div class="markdown-body text-sm" v-html="renderMarkdown(msg.content)"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Loading Indicator -->
+                    <div v-if="isSending" class="chat chat-start">
+                        <div class="chat-header opacity-50 text-xs">System</div>
+                        <div class="chat-bubble chat-bubble-secondary animate-pulse">
+                            <span class="loading loading-dots loading-sm"></span> Agents are thinking...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Input Area -->
+                <div class="p-4 bg-base-100 border-t border-base-200">
+                    <div class="flex gap-2">
+                        <textarea v-model="userInput" @keydown.enter.prevent="sendMessage"
+                                  placeholder="Type your message here..." 
+                                  class="textarea textarea-bordered flex-1 resize-none h-14 focus:outline-none"></textarea>
+                        <button @click="sendMessage" :disabled="isSending || !userInput.trim() || selectedAgentIds.length === 0" 
+                                class="btn btn-primary h-14 w-20">
+                            <i v-if="!isSending" class="fa-solid fa-paper-plane"></i>
+                            <span v-else class="loading loading-spinner"></span>
+                        </button>
+                    </div>
+                    <div v-if="selectedAgentIds.length === 0" class="text-error text-xs mt-1">
+                        * 请至少选择一个智能体参与对话
+                    </div>
+                </div>
+            </div>
+
+            <!-- Agents Config View (Empty State for right side when in Agents tab) -->
+            <div v-if="currentTab === 'agents'" class="flex-1 flex items-center justify-center bg-base-200/50">
+                <div class="text-center opacity-40">
+                    <i class="fa-solid fa-arrow-left text-4xl mb-4"></i>
+                    <p>在左侧管理您的智能体</p>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Create/Edit Agent Modal -->
+        <dialog id="agent_modal" class="modal">
+            <div class="modal-box w-11/12 max-w-2xl">
+                <h3 class="font-bold text-lg mb-4">{{ isEditing ? '编辑智能体' : '新建智能体' }}</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Basic Info -->
+                    <div class="form-control md:col-span-2">
+                        <label class="label"><span class="label-text">Name (唯一标识)</span></label>
+                        <input type="text" v-model="form.name" placeholder="e.g. Coder, Writer" class="input input-bordered w-full" />
+                    </div>
+
+                    <div class="form-control md:col-span-2">
+                        <label class="label"><span class="label-text">Description (用于 GroupChat 路由)</span></label>
+                        <input type="text" v-model="form.config.description" placeholder="Describes what this agent can do..." class="input input-bordered w-full" />
+                    </div>
+                    
+                    <div class="form-control md:col-span-2">
+                        <label class="label"><span class="label-text">System Message (核心人设)</span></label>
+                        <textarea v-model="form.system_message" class="textarea textarea-bordered h-24" placeholder="You are a helpful AI assistant..."></textarea>
+                    </div>
+
+                    <!-- Advanced Config -->
+                    <div class="divider md:col-span-2 text-xs opacity-50">高级配置</div>
+
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">Human Input Mode</span></label>
+                        <select v-model="form.config.human_input_mode" class="select select-bordered w-full">
+                            <option value="NEVER">NEVER (全自动)</option>
+                            <option value="TERMINATE">TERMINATE (结束时询问)</option>
+                            <option value="ALWAYS">ALWAYS (总是询问 - Web端慎用)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">Max Auto Reply</span></label>
+                        <input type="number" v-model.number="form.config.max_consecutive_auto_reply" class="input input-bordered w-full" />
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">Temperature ({{ form.config.temperature }})</span></label>
+                        <input type="range" min="0" max="1" step="0.1" v-model.number="form.config.temperature" class="range range-primary range-xs" />
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">Model</span></label>
+                        <select class="select select-bordered w-full" disabled>
+                            <option selected>deepseek-chat</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="modal-action">
+                    <form method="dialog">
+                        <button class="btn" @click="closeModal">取消</button>
+                        <button class="btn btn-primary ml-2" @click.prevent="saveAgent">保存</button>
+                    </form>
+                </div>
+            </div>
+            <form method="dialog" class="modal-backdrop">
+                <button>close</button>
+            </form>
+        </dialog>
+
+        <!-- Toast Notification -->
+        <div v-if="toast.show" class="toast toast-top toast-center z-50">
+            <div class="alert" :class="toast.type === 'error' ? 'alert-error' : 'alert-success'">
+                <span>{{ toast.message }}</span>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted, computed, nextTick } = Vue;
+        const md = window.markdownit();
+
+        // API Configuration
+        const getApiBase = () => {
+            const hostname = window.location.hostname;
+            if (hostname === '127.0.0.1' || hostname === 'localhost') {
+                return '/api';
+            }
+            // 生产环境 Render 后端地址
+            return 'https://autogen-demo-4tl4.onrender.com/api';
+        };
+        const API_BASE = getApiBase();
+
+        createApp({
+            setup() {
+                // State
+                const currentTab = ref('chat'); // 'chat' or 'agents'
+                const agents = ref([]);
+                const selectedAgentIds = ref([]);
+                const messages = ref([]);
+                const userInput = ref('');
+                const isSending = ref(false);
+                const loadingAgents = ref(false);
+                const isEditing = ref(false);
+                
+                // Form State
+                const form = ref({
+                    id: null,
+                    name: '',
+                    system_message: '',
+                    config: {
+                        description: '',
+                        human_input_mode: 'NEVER',
+                        max_consecutive_auto_reply: 10,
+                        temperature: 0.7
                     }
                 });
+
+                // Toast State
+                const toast = ref({ show: false, message: '', type: 'info' });
+
+                // Refs
+                const chatContainer = ref(null);
+
+                // Methods
+                const showToast = (msg, type = 'info') => {
+                    toast.value = { show: true, message: msg, type };
+                    setTimeout(() => toast.value.show = false, 3000);
+                };
+
+                const fetchAgents = async () => {
+                    loadingAgents.value = true;
+                    try {
+                        const res = await axios.get(`${API_BASE}/agents`);
+                        agents.value = res.data;
+                        // 默认选中所有 agents
+                        if (selectedAgentIds.value.length === 0) {
+                            selectedAgentIds.value = agents.value.map(a => a.id);
+                        }
+                    } catch (e) {
+                        showToast('Failed to load agents: ' + e.message, 'error');
+                    } finally {
+                        loadingAgents.value = false;
+                    }
+                };
+
+                const openCreateModal = () => {
+                    isEditing.value = false;
+                    form.value = {
+                        id: null,
+                        name: '',
+                        system_message: '',
+                        config: {
+                            description: '',
+                            human_input_mode: 'NEVER',
+                            max_consecutive_auto_reply: 10,
+                            temperature: 0.7
+                        }
+                    };
+                    document.getElementById('agent_modal').showModal();
+                };
+
+                const editAgent = (agent) => {
+                    isEditing.value = true;
+                    form.value = JSON.parse(JSON.stringify(agent)); // Deep copy
+                    // Ensure config object exists
+                    if (!form.value.config) {
+                        form.value.config = {
+                            description: '',
+                            human_input_mode: 'NEVER',
+                            max_consecutive_auto_reply: 10,
+                            temperature: 0.7
+                        };
+                    }
+                    document.getElementById('agent_modal').showModal();
+                };
+
+                const closeModal = () => {
+                    document.getElementById('agent_modal').close();
+                };
+
+                const saveAgent = async () => {
+                    if (!form.value.name) {
+                        showToast('Name is required', 'error');
+                        return;
+                    }
+
+                    try {
+                        if (isEditing.value) {
+                            // Delete old and create new (simplest update strategy for this demo)
+                            await axios.delete(`${API_BASE}/agents/${form.value.id}`);
+                        }
+                        
+                        await axios.post(`${API_BASE}/agents`, form.value);
+                        showToast(isEditing.value ? 'Agent updated' : 'Agent created', 'success');
+                        closeModal();
+                        fetchAgents();
+                    } catch (e) {
+                        showToast('Error saving agent: ' + e.message, 'error');
+                    }
+                };
+
+                const deleteAgent = async (id) => {
+                    if (!confirm('Are you sure you want to delete this agent?')) return;
+                    try {
+                        await axios.delete(`${API_BASE}/agents/${id}`);
+                        showToast('Agent deleted', 'success');
+                        fetchAgents();
+                    } catch (e) {
+                        showToast('Error deleting agent: ' + e.message, 'error');
+                    }
+                };
+
+                const sendMessage = async () => {
+                    if (!userInput.value.trim() || isSending.value) return;
+                    if (selectedAgentIds.value.length === 0) {
+                        showToast('Please select at least one agent', 'error');
+                        return;
+                    }
+
+                    const text = userInput.value;
+                    userInput.value = '';
+                    
+                    // Optimistic UI update
+                    messages.value.push({
+                        role: 'user',
+                        name: 'You',
+                        content: text,
+                        timestamp: new Date().toISOString()
+                    });
+
+                    isSending.value = true;
+                    scrollToBottom();
+
+                    try {
+                        const res = await axios.post(`${API_BASE}/chat`, {
+                            message: text,
+                            agent_ids: selectedAgentIds.value
+                        });
+                        
+                        // Append responses
+                        if (res.data.messages && Array.isArray(res.data.messages)) {
+                            // Filter out internal system messages if needed, keeping relevant ones
+                            // For now, we append all new messages except the first user one (duplicates)
+                            const newMessages = res.data.messages.filter((m, idx) => {
+                                // Simple filter to avoid showing the user prompt again if AutoGen returns it
+                                return !(m.role === 'user' && m.content === text);
+                            });
+                            messages.value.push(...newMessages);
+                        }
+                    } catch (e) {
+                        messages.value.push({
+                            role: 'system',
+                            content: 'Error: ' + (e.response?.data?.error || e.message)
+                        });
+                    } finally {
+                        isSending.value = false;
+                        scrollToBottom();
+                    }
+                };
+
+                const clearChat = () => {
+                    if(confirm('Clear chat history?')) {
+                        messages.value = [];
+                    }
+                };
+
+                const scrollToBottom = () => {
+                    nextTick(() => {
+                        if (chatContainer.value) {
+                            chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
+                        }
+                    });
+                };
+
+                const formatTime = (isoString) => {
+                    if (!isoString) return '';
+                    return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                };
+
+                const renderMarkdown = (text) => {
+                    return md.render(text || '');
+                };
+
+                // Lifecycle
+                onMounted(() => {
+                    fetchAgents();
+                });
+
+                return {
+                    currentTab,
+                    agents,
+                    selectedAgentIds,
+                    messages,
+                    userInput,
+                    isSending,
+                    loadingAgents,
+                    isEditing,
+                    form,
+                    toast,
+                    chatContainer,
+                    // methods
+                    fetchAgents,
+                    openCreateModal,
+                    editAgent,
+                    closeModal,
+                    saveAgent,
+                    deleteAgent,
+                    sendMessage,
+                    clearChat,
+                    formatTime,
+                    renderMarkdown
+                };
             }
-        } catch (err) {
-            appendMessage('System', 'Network Error', 'agent');
-        } finally {
-            document.getElementById('loading').style.display = 'none';
-        }
-    }
-
-    function appendMessage(sender, text, type) {
-        const area = document.getElementById('messagesArea');
-        const div = document.createElement('div');
-        div.className = `message ${type}`;
-        div.innerHTML = `
-            <div class="message-header">${sender}</div>
-            <div style="white-space: pre-wrap;">${text}</div>
-        `;
-        area.appendChild(div);
-        area.scrollTop = area.scrollHeight;
-    }
-
-    // Initial Load
-    loadAgents();
-</script>
-
+        }).mount('#app');
+    </script>
 </body>
 </html>

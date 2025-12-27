@@ -69,7 +69,15 @@ def chat():
     
     # 获取选中的 agents
     agents = Agent.query.filter(Agent.id.in_(agent_ids)).all()
-    agents_config = [{"name": a.name, "system_message": a.system_message} for a in agents]
+    agents_config = []
+    for a in agents:
+        agent_data = {
+            "name": a.name,
+            "system_message": a.system_message,
+            "description": a.config.get('description') if a.config else None,
+            "config": a.config # 传递完整配置
+        }
+        agents_config.append(agent_data)
     
     if not agents_config:
          return jsonify({"error": "No agents selected or found"}), 400

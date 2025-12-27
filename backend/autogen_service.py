@@ -13,16 +13,14 @@ def run_autogen_chat(agents_config, user_input):
         raise ValueError("DEEPSEEK_API_KEY not found in environment variables")
 
     # 配置 DeepSeek
-    config_list = [
-        {
-            "model": "deepseek-chat",
-            "api_key": api_key,
-            "base_url": "https://api.deepseek.com"
-        }
-    ]
-    
-    llm_config = {
-        "config_list": config_list,
+    base_llm_config = {
+        "config_list": [
+            {
+                "model": "deepseek-chat",
+                "api_key": api_key,
+                "base_url": "https://api.deepseek.com"
+            }
+        ],
         "temperature": 0.7,
     }
 
@@ -38,10 +36,21 @@ def run_autogen_chat(agents_config, user_input):
     # 创建 Assistants
     assistants = []
     for agent_conf in agents_config:
+        # 合并自定义配置
+        agent_llm_config = base_llm_config.copy()
+        
+        # 如果 agent 有自定义的 llm_config，可以覆盖 (这里简单处理，支持 temperature)
+        custom_config = agent_conf.get('config', {})
+        if 'temperature' in custom_config:
+             agent_llm_config['temperature'] = float(custom_config['temperature'])
+
         assistant = autogen.AssistantAgent(
             name=agent_conf['name'],
             system_message=agent_conf['system_message'],
-            llm_config=llm_config
+            description=agent_conf.get('description'), # 用于 GroupChat 选择
+            llm_config=agent_llm_config,
+            human_input_mode=custom_config.get('human_input_mode', 'NEVER'),
+            max_consecutive_auto_reply=int(custom_config.get('max_consecutive_auto_reply', 10))
         )
         assistants.append(assistant)
 
@@ -52,9 +61,9 @@ def run_autogen_chat(agents_config, user_input):
     groupchat = autogen.GroupChat(
         agents=[user_proxy] + assistants, 
         messages=[], 
-        max_round=10
+        max_round=20
     )
-    manager = autogen.GroupChatManager(groupchat=groupchat, llm_config=llm_config)
+    manager = autogen.GroupChatManager(groupchat=groupchat, llm_config=base_llm_config)
     
     try:
         # 触发对话
