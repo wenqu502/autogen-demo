@@ -1,11 +1,12 @@
 import autogen
 import os
 
-def run_autogen_chat(agents_config, user_input):
+def run_autogen_chat(agents_config, user_input, history=None):
     """
     运行 AutoGen 对话
-    :param agents_config: list of dict, e.g. [{'name': 'Coder', 'system_message': '...'}]
+    :param agents_config: list of dict
     :param user_input: str
+    :param history: list of dict (optional), previous messages
     :return: list of messages
     """
     api_key = os.environ.get("DEEPSEEK_API_KEY")
@@ -58,18 +59,33 @@ def run_autogen_chat(agents_config, user_input):
         return [{"role": "system", "content": "No agents configured."}]
 
     # 使用 GroupChat
+    # 处理历史记录
+    initial_messages = []
+    if history:
+        for msg in history:
+            if isinstance(msg, dict) and 'content' in msg and 'role' in msg:
+                 # AutoGen 格式要求
+                clean_msg = {
+                    "role": msg['role'],
+                    "content": msg['content'],
+                    "name": msg.get('name', msg['role'])
+                }
+                initial_messages.append(clean_msg)
+
     groupchat = autogen.GroupChat(
         agents=[user_proxy] + assistants, 
-        messages=[], 
+        messages=initial_messages, 
         max_round=20
     )
     manager = autogen.GroupChatManager(groupchat=groupchat, llm_config=base_llm_config)
     
     try:
         # 触发对话
+        # clear_history=False 以保留我们注入的历史记录
         user_proxy.initiate_chat(
             manager,
-            message=user_input
+            message=user_input,
+            clear_history=False
         )
         
         # 返回聊天记录

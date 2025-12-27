@@ -7,6 +7,10 @@ venv/
 instance/
 .DS_Store
 
+# Database
+*.db
+*.sqlite3
+
 # Frontend
 node_modules/
 dist/

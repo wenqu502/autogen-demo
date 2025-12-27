@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AutoGen Studio Lite</title>
-    <!-- Tailwind + DaisyUI -->
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.min.css" rel="stylesheet" type="text/css" />
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Vue 3 -->
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <!-- Axios -->
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-    <!-- Markdown-it -->
-    <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.0.0/dist/markdown-it.min.js"></script>
-    <!-- Font Awesome -->
+    <title>AutoGen Studio Pro</title>
+    <!-- Tailwind + DaisyUI (Local) -->
+    <link href="/static/vendor/css/daisyui.full.min.css" rel="stylesheet" type="text/css" />
+    <script src="/static/vendor/js/tailwindcss.js"></script>
+    <!-- Vue 3 (Local) -->
+    <script src="/static/vendor/js/vue.global.min.js"></script>
+    <!-- Axios (Local) -->
+    <script src="/static/vendor/js/axios.min.js"></script>
+    <!-- Markdown-it (Local) -->
+    <script src="/static/vendor/js/markdown-it.min.js"></script>
+    <!-- Font Awesome (CDNJS) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
@@ -21,264 +21,477 @@
         .markdown-body p { margin-bottom: 0.5em; }
         .markdown-body pre { background-color: #2d2d2d; color: #ccc; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; }
         .chat-bubble.markdown-body { max-width: 100%; overflow-x: hidden; }
-        /* Error overlay */
-        #error-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 9999; padding: 20px; color: red; overflow: auto; }
-    </style>
-    <script>
-        window.onerror = function(msg, url, line, col, error) {
-            const overlay = document.getElementById('error-overlay');
-            if (overlay) {
-                overlay.style.display = 'block';
-                overlay.innerHTML += `<h3>Error Detected:</h3><pre>${msg}\nAt: ${url}:${line}:${col}\nStack: ${error?.stack}</pre><hr>`;
-            }
-            return false;
-        };
-    </script>
-</head>
-<body class="bg-base-200 h-screen overflow-hidden text-base-content">
-    <div id="error-overlay"></div>
-    
-    <div id="app" v-cloak class="flex h-full w-full">
         
-        <!-- Sidebar: Navigation & Agents -->
-        <div class="w-80 bg-base-100 border-r border-base-300 flex flex-col shadow-xl z-10">
-            <div class="p-4 border-b border-base-300 bg-primary text-primary-content flex items-center gap-2">
-                <i class="fa-solid fa-robot text-2xl"></i>
-                <div>
-                    <h1 class="font-bold text-lg">AutoGen Studio</h1>
-                    <p class="text-xs opacity-80">Multi-Agent Orchestration</p>
-                </div>
-            </div>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-50 h-screen w-screen overflow-hidden text-slate-600 font-sans selection:bg-blue-100">
+    {% raw %}
+    <div id="app" v-cloak class="flex h-full w-full">
 
-            <!-- Tab Switcher -->
-            <div class="tabs tabs-boxed m-2 bg-base-200">
-                <a class="tab flex-1" :class="{'tab-active': currentTab === 'chat'}" @click="currentTab = 'chat'">
-                    <i class="fa-solid fa-comments mr-2"></i> 对话
-                </a>
-                <a class="tab flex-1" :class="{'tab-active': currentTab === 'agents'}" @click="currentTab = 'agents'">
-                    <i class="fa-solid fa-users-gear mr-2"></i> 智能体
-                </a>
-            </div>
+        <!-- Login / Register Screen -->
+        <div v-if="!isLoggedIn" class="flex-1 flex items-center justify-center bg-base-200">
+            <div class="card w-96 bg-base-100 shadow-xl">
+                <div class="card-body">
+                    <h2 class="card-title justify-center mb-4 text-2xl font-bold text-primary">
+                        {{ isRegisterMode ? '注册账号' : '欢迎登录' }}
+                    </h2>
+                    
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">用户名</span></label>
+                        <input type="text" v-model="authForm.username" placeholder="请输入用户名" class="input input-bordered" />
+                    </div>
+                    
+                    <div class="form-control mt-2">
+                        <label class="label"><span class="label-text">密码</span></label>
+                        <input type="password" v-model="authForm.password" placeholder="请输入密码" class="input input-bordered" />
+                    </div>
 
-            <!-- Agents List (Selectable for Chat) -->
-            <div v-show="currentTab === 'chat'" class="flex-1 overflow-y-auto p-2">
-                <div class="flex items-center justify-between px-2 mb-2">
-                    <div class="text-xs font-bold text-base-content/50 uppercase">选择参与的智能体</div>
-                    <button @click="toggleSelectAll" class="btn btn-xs btn-ghost text-xs">
-                        {{ selectedAgentIds.length === agents.length ? '取消全选' : '全选' }}
-                    </button>
-                </div>
-                <div v-if="loadingAgents" class="flex justify-center p-4"><span class="loading loading-spinner"></span></div>
-                <div v-else class="space-y-2">
-                    <label v-for="agent in agents" :key="agent.id" 
-                           class="flex items-center p-3 rounded-lg hover:bg-base-200 cursor-pointer border border-transparent hover:border-base-300 transition-all"
-                           :class="{'bg-primary/10 border-primary': selectedAgentIds.includes(agent.id)}">
-                        <input type="checkbox" :value="agent.id" v-model="selectedAgentIds" class="checkbox checkbox-primary checkbox-sm mr-3" />
-                        <div class="flex-1">
-                            <div class="font-bold">{{ agent.name }}</div>
-                            <div class="text-xs opacity-60 truncate">{{ agent.config?.description || 'No description' }}</div>
-                        </div>
-                    </label>
-                    <div v-if="agents.length === 0" class="text-center p-4 opacity-50 text-sm">
-                        暂无智能体，请先去配置
+                    <div class="form-control mt-6 space-y-2">
+                        <button class="btn btn-primary" @click="handleAuth" :disabled="authLoading">
+                            <span v-if="authLoading" class="loading loading-spinner"></span>
+                            {{ isRegisterMode ? '立即注册' : '登录' }}
+                        </button>
+                        <button v-if="!isRegisterMode" class="btn btn-ghost btn-sm text-xs opacity-70" @click="handleGuestLogin">
+                            <i class="fa-solid fa-user-secret"></i> 访客模式 (不保存数据)
+                        </button>
+                    </div>
+
+                    <div class="divider text-xs opacity-50">OR</div>
+
+                    <div class="text-center text-sm">
+                        <a @click="isRegisterMode = !isRegisterMode" class="link link-hover text-primary">
+                            {{ isRegisterMode ? '已有账号？去登录' : '没有账号？去注册' }}
+                        </a>
                     </div>
                 </div>
             </div>
-
-             <!-- Agents Management List -->
-             <div v-show="currentTab === 'agents'" class="flex-1 overflow-y-auto p-2">
-                <div class="space-y-3">
-                    <div v-for="agent in agents" :key="agent.id" class="card bg-base-100 shadow-sm border border-base-200 compact group">
-                        <div class="card-body p-4">
-                            <div class="flex justify-between items-start">
-                                <h3 class="card-title text-base">{{ agent.name }}</h3>
-                                <div class="flex gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button @click="duplicateAgent(agent)" class="btn btn-ghost btn-xs text-secondary" title="复制智能体"><i class="fa-solid fa-copy"></i></button>
-                                    <button @click="editAgent(agent)" class="btn btn-ghost btn-xs text-info" title="编辑"><i class="fa-solid fa-pen"></i></button>
-                                    <button @click="deleteAgent(agent.id)" class="btn btn-ghost btn-xs text-error" title="删除"><i class="fa-solid fa-trash"></i></button>
-                                </div>
-                            </div>
-                            <p class="text-xs opacity-70 line-clamp-2">{{ agent.system_message }}</p>
-                            <div class="mt-2 flex flex-wrap gap-1">
-                                <span class="badge badge-xs badge-outline">{{ agent.config?.human_input_mode || 'NEVER' }}</span>
-                                <span class="badge badge-xs badge-outline">Temp: {{ agent.config?.temperature || 0.7 }}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <button @click="openCreateModal" class="btn btn-primary w-full mt-4">
-                    <i class="fa-solid fa-plus"></i> 新建智能体
-                </button>
-             </div>
         </div>
-
-        <!-- Main Content Area -->
-        <div class="flex-1 flex flex-col bg-base-100 relative">
+        
+        <!-- Main App (Authenticated) -->
+        <div v-else class="flex h-full w-full">
             
-            <!-- Chat View -->
-            <div v-show="currentTab === 'chat'" class="flex-1 flex flex-col h-full">
-                <!-- Chat Header -->
-                <div class="navbar bg-base-100 border-b border-base-200 px-4 min-h-[4rem]">
-                    <div class="flex-1">
-                        <span class="font-bold text-lg">Group Chat</span>
-                        <span class="ml-2 text-sm opacity-50" v-if="selectedAgentIds.length > 0">
-                            ({{ selectedAgentIds.length }} Agents Active)
-                        </span>
-                    </div>
-                    <div class="flex-none">
-                        <button @click="clearChat" class="btn btn-ghost btn-sm text-error" title="清空对话">
-                            <i class="fa-solid fa-trash-can"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Messages Area -->
-                <div class="flex-1 overflow-y-auto p-4 space-y-4" ref="chatContainer">
-                    <div v-if="messages.length === 0" class="flex flex-col items-center justify-center h-full text-base-content/30">
-                        <i class="fa-solid fa-comments text-6xl mb-4"></i>
-                        <p>选择智能体并开始对话</p>
-                    </div>
-                    
-                    <div v-for="(msg, index) in messages" :key="index" class="chat" 
-                         :class="msg.role === 'user' ? 'chat-end' : 'chat-start'">
-                        <div class="chat-header opacity-50 text-xs mb-1">
-                            {{ msg.name || msg.role }} <time class="text-[10px] ml-1">{{ formatTime(msg.timestamp) }}</time>
-                        </div>
-                        <div class="chat-bubble shadow-md" 
-                             :class="{'chat-bubble-primary': msg.role === 'user', 'chat-bubble-secondary': msg.role !== 'user'}">
-                            <div class="markdown-body text-sm" v-html="renderMarkdown(msg.content)"></div>
-                        </div>
-                    </div>
-                    
-                    <!-- Loading Indicator -->
-                    <div v-if="isSending" class="chat chat-start">
-                        <div class="chat-header opacity-50 text-xs">System</div>
-                        <div class="chat-bubble chat-bubble-secondary animate-pulse">
-                            <span class="loading loading-dots loading-sm"></span> Agents are thinking...
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Input Area -->
-                <div class="p-4 bg-base-100 border-t border-base-200">
-                    <div class="flex gap-2">
-                        <textarea v-model="userInput" @keydown="handleKeydown"
-                                  placeholder="Type your message here... (Enter to send, Shift+Enter for new line)" 
-                                  class="textarea textarea-bordered flex-1 resize-none h-14 focus:outline-none leading-normal py-2"></textarea>
-                        <button @click="sendMessage" :disabled="isSending || !userInput.trim() || selectedAgentIds.length === 0" 
-                                class="btn btn-primary h-14 w-20">
-                            <i v-if="!isSending" class="fa-solid fa-paper-plane"></i>
-                            <span v-else class="loading loading-spinner"></span>
-                        </button>
-                    </div>
-                    <div v-if="selectedAgentIds.length === 0" class="text-error text-xs mt-1">
-                        * 请至少选择一个智能体参与对话
-                    </div>
-                </div>
-            </div>
-
-            <!-- Agents Config View (Empty State for right side when in Agents tab) -->
-            <div v-show="currentTab === 'agents'" class="flex-1 flex items-center justify-center bg-base-200/50">
-                <div class="text-center opacity-40">
-                    <i class="fa-solid fa-arrow-left text-4xl mb-4"></i>
-                    <p>在左侧管理您的智能体</p>
-                </div>
-            </div>
-
-        </div>
-
-        <!-- Create/Edit Agent Modal -->
-        <dialog id="agent_modal" class="modal">
-            <div class="modal-box w-11/12 max-w-2xl">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="font-bold text-lg">{{ isEditing ? '编辑智能体' : '新建智能体' }}</h3>
-                    <div class="dropdown dropdown-end">
-                        <div tabindex="0" role="button" class="btn btn-xs btn-outline">快速模板</div>
-                        <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
-                            <li v-for="(tpl, name) in templates" :key="name">
-                                <a @click="applyTemplate(tpl)">{{ name }}</a>
-                            </li>
-                        </ul>
-                    </div>
+            <!-- 1. Primary Navigation Rail (Leftmost) -->
+            <div class="w-16 bg-white border-r border-slate-100 flex flex-col items-center py-6 gap-6 z-20 shadow-sm">
+                <div class="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-lg mb-2 cursor-pointer relative shadow-md hover:scale-105 transition-transform" :title="currentUser?.username">
+                    {{ currentUser?.username?.substring(0,1).toUpperCase() }}
+                    <div v-if="isGuest" class="absolute -top-1 -right-1 w-3 h-3 bg-warning rounded-full border-2 border-white" title="访客模式"></div>
                 </div>
                 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <!-- Basic Info -->
-                    <div class="form-control md:col-span-2">
-                        <label class="label"><span class="label-text">Name (唯一标识)</span></label>
-                        <input type="text" v-model="form.name" placeholder="e.g. Coder, Writer" class="input input-bordered w-full" />
-                    </div>
+                <div class="divider my-0 px-2 opacity-50"></div>
 
-                    <div class="form-control md:col-span-2">
-                        <label class="label"><span class="label-text">Description (用于 GroupChat 路由)</span></label>
-                        <input type="text" v-model="form.config.description" placeholder="Describes what this agent can do..." class="input input-bordered w-full" />
+                <button @click="currentTab = 'chat'" 
+                        class="group w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 relative"
+                        :class="currentTab === 'chat' ? 'bg-blue-50 text-blue-600' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'">
+                    <i class="fa-solid fa-comments text-lg"></i>
+                    <div v-if="currentTab === 'chat'" class="absolute left-0 w-1 h-6 bg-blue-600 rounded-r-full"></div>
+                </button>
+                
+                <button @click="currentTab = 'agents'" 
+                        class="group w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 relative"
+                        :class="currentTab === 'agents' ? 'bg-blue-50 text-blue-600' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'">
+                    <i class="fa-solid fa-robot text-lg"></i>
+                    <div v-if="currentTab === 'agents'" class="absolute left-0 w-1 h-6 bg-blue-600 rounded-r-full"></div>
+                </button>
+
+                <div class="flex-1"></div>
+
+                <button @click="logout" class="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all" title="退出登录">
+                    <i class="fa-solid fa-right-from-bracket text-lg"></i>
+                </button>
+            </div>
+
+            <!-- 2. Secondary Sidebar (Contextual) -->
+            <div class="w-64 bg-white border-r border-slate-100 flex flex-col z-10 transition-all duration-300">
+                
+                <!-- Context: CHAT (Conversation List) -->
+                <div v-if="currentTab === 'chat'" class="flex flex-col h-full">
+                    <div class="p-5 flex justify-between items-center">
+                        <h2 class="font-bold text-lg text-slate-800 tracking-tight">消息列表</h2>
                     </div>
                     
-                    <div class="form-control md:col-span-2">
-                        <label class="label"><span class="label-text">System Message (核心人设)</span></label>
-                        <textarea v-model="form.system_message" class="textarea textarea-bordered h-24" placeholder="You are a helpful AI assistant..."></textarea>
+                    <div class="flex-1 overflow-y-auto px-3 pb-2 space-y-2">
+                        <div v-if="loadingConversations" class="flex justify-center p-4"><span class="loading loading-spinner text-blue-500"></span></div>
+                        
+                        <div v-for="conv in conversations" :key="conv.id" 
+                            @click="loadConversation(conv)"
+                            class="p-3 rounded-xl cursor-pointer transition-all group relative flex gap-3 items-start"
+                            :class="currentConversation?.id === conv.id ? 'bg-blue-50' : 'hover:bg-slate-50'">
+                            
+                            <div class="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-bold shadow-sm"
+                                 :class="currentConversation?.id === conv.id ? 'bg-blue-200 text-blue-700' : 'bg-slate-100 text-slate-500'">
+                                {{ conv.title ? conv.title.substring(0,1) : '#' }}
+                            </div>
+
+                            <div class="flex-1 min-w-0">
+                                <div class="font-bold text-sm text-slate-700 truncate mb-0.5" :class="{'text-blue-700': currentConversation?.id === conv.id}">
+                                    {{ conv.title || '新会话' }}
+                                </div>
+                                <div class="text-xs text-slate-400 truncate">{{ formatTime(conv.updated_at || conv.created_at) }}</div>
+                            </div>
+                        </div>
+                        
+                        <div v-if="conversations.length === 0" class="text-center p-8 opacity-50 text-sm">
+                            <p class="text-slate-400">暂无历史会话</p>
+                        </div>
                     </div>
-
-                    <!-- Advanced Config -->
-                    <div class="divider md:col-span-2 text-xs opacity-50">高级配置</div>
-
-                    <div class="form-control">
-                        <label class="label"><span class="label-text">Human Input Mode</span></label>
-                        <select v-model="form.config.human_input_mode" class="select select-bordered w-full">
-                            <option value="NEVER">NEVER (全自动)</option>
-                            <option value="TERMINATE">TERMINATE (结束时询问)</option>
-                            <option value="ALWAYS">ALWAYS (总是询问 - Web端慎用)</option>
-                        </select>
-                    </div>
-
-                    <div class="form-control">
-                        <label class="label"><span class="label-text">Max Auto Reply</span></label>
-                        <input type="number" v-model.number="form.config.max_consecutive_auto_reply" class="input input-bordered w-full" />
-                    </div>
-
-                    <div class="form-control">
-                        <label class="label"><span class="label-text">Temperature ({{ form.config.temperature }})</span></label>
-                        <input type="range" min="0" max="1" step="0.1" v-model.number="form.config.temperature" class="range range-primary range-xs" />
-                    </div>
-
-                    <div class="form-control">
-                        <label class="label"><span class="label-text">Model</span></label>
-                        <select class="select select-bordered w-full" disabled>
-                            <option selected>deepseek-chat</option>
-                        </select>
+                    
+                    <div class="p-4 border-t border-slate-50">
+                        <button @click="createNewConversation" class="btn btn-primary w-full rounded-xl shadow-lg shadow-blue-200 text-white border-0 flex items-center gap-2">
+                            <i class="fa-solid fa-plus"></i> 新建对话
+                        </button>
                     </div>
                 </div>
 
-                <div class="modal-action">
-                    <form method="dialog">
-                        <button class="btn" @click="closeModal">取消</button>
-                        <button class="btn btn-primary ml-2" @click.prevent="saveAgent">保存</button>
-                    </form>
+                <!-- Context: AGENTS -->
+                <div v-if="currentTab === 'agents'" class="flex flex-col h-full">
+                    <div class="p-5 flex justify-between items-center">
+                        <h2 class="font-bold text-lg text-slate-800">我的智能体</h2>
+                        <button @click="createNewAgent" class="btn btn-ghost btn-sm btn-square hover:bg-slate-100 text-slate-600" title="新建">
+                            <i class="fa-solid fa-plus"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="flex-1 overflow-y-auto px-3 space-y-2">
+                        <div v-for="agent in agents" :key="agent.id" 
+                            @click="selectAgentToEdit(agent)"
+                            class="p-3 rounded-xl cursor-pointer transition-all mb-2 relative group border border-transparent hover:border-slate-100 hover:bg-slate-50"
+                            :class="editingAgent?.id === agent.id ? 'bg-blue-50 border-blue-100' : ''">
+                            <div class="font-bold text-slate-700">{{ agent.name }}</div>
+                            <div class="text-xs text-slate-400 line-clamp-1 mt-1">{{ agent.system_message }}</div>
+                            <div class="absolute right-2 top-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <i class="fa-solid fa-chevron-right text-xs opacity-50"></i>
+                            </div>
+                        </div>
+                    </div>
                 </div>
+
             </div>
-            <form method="dialog" class="modal-backdrop">
-                <button>close</button>
-            </form>
-        </dialog>
+
+            <!-- 3. Main Content Area -->
+            <div class="flex-1 flex flex-col bg-slate-50 relative h-full overflow-hidden">
+                
+                <!-- View: CHAT & DASHBOARD -->
+                <div v-if="currentTab === 'chat'" class="flex flex-col h-full">
+                    
+                    <!-- 3.1 DASHBOARD VIEW (No Conversation Selected) -->
+                    <div v-if="!currentConversation" class="flex-1 flex flex-col h-full overflow-y-auto p-8 lg:p-12 scroll-smooth">
+                        <!-- Header -->
+                        <div class="flex flex-col md:flex-row justify-between items-center mb-10 gap-6">
+                            <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">AI 星球 <span class="text-blue-600 text-lg ml-2 font-normal">Explore</span></h1>
+                            
+                            <!-- Search (Visual Only) -->
+                            <div class="relative w-full md:w-96 group">
+                                <input type="text" placeholder="搜索助理名称、类型..." class="input w-full rounded-full pl-12 bg-white shadow-sm border-0 focus:ring-2 focus:ring-blue-100 transition-all text-slate-600" />
+                                <i class="fa-solid fa-magnifying-glass absolute left-5 top-3.5 text-slate-300 group-focus-within:text-blue-500 transition-colors"></i>
+                                <button class="absolute right-1.5 top-1.5 btn btn-sm btn-primary rounded-full px-5 text-white border-0 shadow-md">搜索</button>
+                            </div>
+                        </div>
+
+                        <!-- Banner -->
+                        <div class="w-full h-64 rounded-[2rem] bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 relative overflow-hidden shadow-2xl shadow-indigo-200 mb-12 flex items-center px-10 md:px-16 text-white shrink-0 group">
+                            <div class="z-10 max-w-lg">
+                                <h2 class="text-3xl md:text-5xl font-bold mb-6 leading-tight">你的专属 <br/><span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-pink-200">AI 智能助理</span></h2>
+                                <p class="text-lg opacity-80 font-light tracking-wide">创意 · 写作 · 客服 · 营销 · 规划</p>
+                            </div>
+                            <!-- Decor -->
+                            <div class="absolute -right-20 -bottom-20 opacity-20 group-hover:opacity-30 transition-opacity duration-700">
+                                <i class="fa-solid fa-robot text-[20rem] rotate-12"></i>
+                            </div>
+                            <div class="absolute right-20 top-10 opacity-10 animate-pulse">
+                                <i class="fa-solid fa-star text-6xl"></i>
+                            </div>
+                        </div>
+
+                        <!-- Recommendations Grid -->
+                        <div class="flex items-center gap-3 mb-6">
+                            <i class="fa-solid fa-fire text-red-500"></i>
+                            <h3 class="text-xl font-bold text-slate-700">热门推荐</h3>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+                            <div v-for="agent in agents.slice(0, 4)" :key="'rec_'+agent.id" 
+                                @click="createNewConversationWithAgent(agent)"
+                                class="bg-white p-5 rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer border border-slate-100 group flex items-start gap-4 h-full">
+                                
+                                <div class="avatar placeholder">
+                                    <div class="bg-gradient-to-br from-blue-50 to-indigo-50 text-blue-600 rounded-2xl w-14 h-14 flex items-center justify-center text-xl font-bold group-hover:scale-110 transition-transform shadow-inner">
+                                        {{ agent.name[0] }}
+                                    </div>
+                                </div>
+                                <div class="flex-1 overflow-hidden">
+                                    <div class="font-bold text-slate-800 text-lg mb-1 group-hover:text-blue-600 transition-colors">{{ agent.name }}</div>
+                                    <div class="text-xs text-slate-400 line-clamp-2 leading-relaxed">{{ agent.config?.description || '暂无描述' }}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- All Agents Grid -->
+                        <div class="flex items-center justify-between mb-6">
+                            <div class="flex items-center gap-3">
+                                <i class="fa-solid fa-layer-group text-blue-500"></i>
+                                <h3 class="text-xl font-bold text-slate-700">AI 智能助理</h3>
+                            </div>
+                            <!-- Tabs -->
+                            <div class="hidden md:flex gap-2">
+                                <button class="btn btn-xs sm:btn-sm btn-primary rounded-full px-4 shadow-md shadow-blue-200 border-0">全部</button>
+                                <button class="btn btn-xs sm:btn-sm btn-ghost bg-white rounded-full px-4 text-slate-500 hover:bg-slate-100">职场</button>
+                                <button class="btn btn-xs sm:btn-sm btn-ghost bg-white rounded-full px-4 text-slate-500 hover:bg-slate-100">创作</button>
+                                <button class="btn btn-xs sm:btn-sm btn-ghost bg-white rounded-full px-4 text-slate-500 hover:bg-slate-100">情感</button>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5 pb-10">
+                            <div v-for="agent in agents" :key="agent.id" 
+                                @click="createNewConversationWithAgent(agent)"
+                                class="bg-white p-6 rounded-3xl shadow-sm hover:shadow-lg hover:shadow-blue-50/50 hover:-translate-y-1 transition-all duration-300 cursor-pointer border border-slate-100 flex flex-col items-center text-center group h-full">
+                                
+                                <div class="avatar placeholder mb-4">
+                                    <div class="bg-slate-50 text-slate-600 rounded-full w-16 h-16 flex items-center justify-center text-2xl font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300 shadow-sm">
+                                        {{ agent.name[0] }}
+                                    </div>
+                                </div>
+                                <div class="font-bold text-slate-800 mb-2 group-hover:text-blue-600 transition-colors">{{ agent.name }}</div>
+                                <div class="text-xs text-slate-400 line-clamp-2 h-8 leading-relaxed w-full">{{ agent.config?.description }}</div>
+                                <div class="mt-4 opacity-0 group-hover:opacity-100 transition-opacity text-blue-500 text-xs font-bold">
+                                    立即对话 <i class="fa-solid fa-arrow-right ml-1"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3.2 ACTIVE CONVERSATION -->
+                    <div v-else class="flex flex-col h-full w-full bg-white/50 backdrop-blur-sm relative">
+                        
+                        <!-- Header -->
+                        <div class="h-16 border-b border-slate-100 bg-white/80 backdrop-blur flex items-center justify-between px-6 z-10 shadow-sm">
+                            <div class="flex items-center gap-3">
+                                <div class="w-2 h-8 bg-blue-600 rounded-full"></div>
+                                <div>
+                                    <div class="font-bold text-slate-800 text-lg">{{ currentConversation.title }}</div>
+                                    <div class="text-xs text-slate-400 flex items-center gap-2">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                                        AI 助手在线
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <button @click="showAgentSelector = true" class="btn btn-sm btn-ghost gap-2 text-slate-500 hover:bg-blue-50 hover:text-blue-600 rounded-full border border-slate-200">
+                                <i class="fa-solid fa-users"></i>
+                                <span class="hidden sm:inline">参与者 ({{ selectedAgentIds.length }})</span>
+                            </button>
+                        </div>
+
+                        <!-- Agent Selector Overlay -->
+                        <div v-if="selectedAgentIds.length === 0 || showAgentSelector" class="absolute inset-0 z-50 bg-white/95 backdrop-blur-md flex flex-col p-8 overflow-y-auto">
+                             <div class="max-w-2xl mx-auto w-full">
+                                <div class="flex justify-between items-center mb-8">
+                                    <h2 class="text-3xl font-bold text-slate-800">选择参与者</h2>
+                                    <button v-if="selectedAgentIds.length > 0" @click="showAgentSelector = false" class="btn btn-circle btn-ghost">
+                                        <i class="fa-solid fa-xmark text-xl"></i>
+                                    </button>
+                                </div>
+                                
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div v-for="agent in agents" :key="agent.id" 
+                                        @click="toggleAgentSelection(agent.id)"
+                                        class="flex items-center p-4 rounded-2xl cursor-pointer border-2 transition-all group"
+                                        :class="selectedAgentIds.includes(agent.id) ? 'border-blue-500 bg-blue-50' : 'border-slate-100 hover:border-blue-200 bg-white'">
+                                        
+                                        <div class="avatar placeholder mr-4">
+                                            <div class="rounded-xl w-12 h-12 flex items-center justify-center text-lg font-bold transition-colors"
+                                                 :class="selectedAgentIds.includes(agent.id) ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500'">
+                                                {{ agent.name[0] }}
+                                            </div>
+                                        </div>
+                                        <div class="flex-1">
+                                            <div class="font-bold text-slate-800">{{ agent.name }}</div>
+                                            <div class="text-xs text-slate-400 line-clamp-1">{{ agent.config?.description }}</div>
+                                        </div>
+                                        <div v-if="selectedAgentIds.includes(agent.id)" class="text-blue-500 text-xl">
+                                            <i class="fa-solid fa-circle-check"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mt-10 flex justify-center">
+                                    <button @click="confirmAgents" class="btn btn-primary btn-lg rounded-full px-12 shadow-xl shadow-blue-200" :disabled="selectedAgentIds.length === 0">
+                                        开始对话
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Chat Area -->
+                        <div class="flex-1 flex flex-col h-full overflow-hidden">
+                            <!-- Messages -->
+                            <div class="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth bg-slate-50/50" ref="chatContainer">
+                                <div v-if="messages.length === 0" class="flex flex-col items-center justify-center h-full text-slate-300 select-none">
+                                    <div class="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+                                        <i class="fa-solid fa-paper-plane text-3xl opacity-50"></i>
+                                    </div>
+                                    <p>你好，我是你的 AI 助理，请问有什么可以帮您？</p>
+                                    
+                                    <!-- Suggested Prompts -->
+                                    <div class="flex flex-wrap gap-2 justify-center mt-6 max-w-lg">
+                                        <button @click="userInput='帮我写一个周报'; sendMessage()" class="btn btn-sm btn-ghost bg-white border border-slate-200 rounded-full font-normal text-slate-600 hover:border-blue-400 hover:text-blue-600">帮我写一个周报</button>
+                                        <button @click="userInput='解释一下量子力学'; sendMessage()" class="btn btn-sm btn-ghost bg-white border border-slate-200 rounded-full font-normal text-slate-600 hover:border-blue-400 hover:text-blue-600">解释一下量子力学</button>
+                                        <button @click="userInput='推荐几本好书'; sendMessage()" class="btn btn-sm btn-ghost bg-white border border-slate-200 rounded-full font-normal text-slate-600 hover:border-blue-400 hover:text-blue-600">推荐几本好书</button>
+                                    </div>
+                                </div>
+                                
+                                <div v-for="(msg, index) in messages" :key="index" class="flex gap-4 group" 
+                                    :class="msg.role === 'user' ? 'flex-row-reverse' : ''">
+                                    
+                                    <!-- Avatar -->
+                                    <div class="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0 shadow-sm"
+                                         :class="msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-white text-slate-700 border border-slate-200'">
+                                        {{ msg.role === 'user' ? '我' : (msg.name?.[0] || 'AI') }}
+                                    </div>
+
+                                    <!-- Bubble -->
+                                    <div class="max-w-[80%]">
+                                        <div class="text-xs text-slate-400 mb-1 px-1" :class="msg.role === 'user' ? 'text-right' : ''">
+                                            {{ msg.name || (msg.role === 'user' ? '我' : msg.role) }} · {{ formatTime(msg.timestamp) }}
+                                        </div>
+                                        <div class="p-4 rounded-2xl shadow-sm text-sm leading-relaxed overflow-hidden markdown-body" 
+                                            :class="msg.role === 'user' ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white text-slate-700 border border-slate-100 rounded-tl-none'">
+                                            <div v-html="renderMarkdown(msg.content)"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div v-if="isSending" class="flex gap-4">
+                                    <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 text-blue-600 border border-blue-100 flex items-center justify-center text-xs font-bold shrink-0 animate-pulse">AI</div>
+                                    <div class="p-4 rounded-2xl bg-white border border-slate-100 rounded-tl-none shadow-sm flex items-center gap-2">
+                                        <span class="loading loading-dots loading-sm text-blue-500"></span>
+                                        <span class="text-xs text-slate-400">思考中...</span>
+                                        <button @click="stopGeneration" class="ml-3 btn btn-xs btn-circle btn-ghost text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="停止生成">
+                                            <i class="fa-solid fa-stop"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Floating Input Area -->
+                            <div class="p-6 bg-slate-50/80 backdrop-blur z-20">
+                                <div class="max-w-4xl mx-auto bg-white/90 backdrop-blur-xl rounded-[2rem] shadow-2xl shadow-blue-900/5 border border-white/50 p-2 flex items-end relative transition-all duration-300 hover:shadow-blue-900/10 hover:scale-[1.002]">
+                                    <textarea v-model="userInput" @keydown.enter.prevent="sendMessage"
+                                            placeholder="输入您的问题，按回车发送..." 
+                                            class="textarea w-full resize-none bg-transparent border-0 focus:outline-none h-auto min-h-[3.5rem] max-h-32 py-4 px-6 text-base text-slate-700 placeholder:text-slate-400 font-medium"
+                                            :disabled="isSending"></textarea>
+                                    
+                                    <div class="flex flex-col gap-1 m-2">
+                                        <!-- Human Input Mode Indicator (Visual Only for now) -->
+                                        <div v-if="!isSending && userInput.trim()" class="text-[10px] text-center text-blue-400 font-bold uppercase tracking-wider animate-fade-in">
+                                            Human Input
+                                        </div>
+                                        <button @click="sendMessage" 
+                                                :disabled="isSending || !userInput.trim()" 
+                                                class="btn btn-primary h-10 w-10 min-h-0 rounded-full shadow-lg shadow-blue-500/30 text-white border-0 transition-all hover:scale-110 hover:shadow-blue-500/50 active:scale-95 flex items-center justify-center p-0">
+                                            <span v-if="!isSending"><i class="fa-solid fa-paper-plane text-sm"></i></span>
+                                            <span v-else class="loading loading-spinner loading-xs"></span>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="text-center text-[10px] text-slate-400 mt-3 font-light flex justify-center gap-4">
+                                    <span><i class="fa-solid fa-shield-halved mr-1 opacity-50"></i> 内容由 AI 生成</span>
+                                    <span><i class="fa-solid fa-keyboard mr-1 opacity-50"></i> Enter 发送</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- View: AGENT EDITOR (Keep mostly same but clean up style) -->
+                <div v-if="currentTab === 'agents'" class="flex h-full bg-slate-50">
+                    <div v-if="!editingAgent" class="flex-1 flex flex-col items-center justify-center text-slate-300">
+                        <i class="fa-solid fa-robot text-6xl mb-4 opacity-20"></i>
+                        <p>选择一个智能体进行编辑，或创建一个新的</p>
+                    </div>
+
+                    <div v-else class="flex-1 overflow-y-auto p-8">
+                        <div class="max-w-3xl mx-auto bg-white rounded-3xl shadow-xl shadow-slate-200 border border-slate-100 overflow-hidden">
+                             <!-- Editor Content ... (Keeping existing editor logic but with white bg) -->
+                             <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                <div>
+                                    <h2 class="text-2xl font-bold text-slate-800">{{ editingAgent.id ? '编辑智能体' : '新建智能体' }}</h2>
+                                    <p class="text-sm opacity-60">配置智能体的行为和人设</p>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button v-if="editingAgent.id" @click="deleteAgent(editingAgent.id)" class="btn btn-error btn-ghost btn-sm text-red-500">删除</button>
+                                    <button @click="saveAgent" class="btn btn-primary btn-sm px-6 rounded-full shadow-md text-white border-0">保存</button>
+                                </div>
+                            </div>
+                            
+                            <div class="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <!-- Keep inputs but styling tweak -->
+                                <div class="form-control md:col-span-2">
+                                    <label class="label font-bold text-sm text-slate-600">智能体名称</label>
+                                    <input type="text" v-model="editingAgent.name" class="input input-bordered w-full bg-slate-50 border-slate-200 focus:bg-white transition-all rounded-xl" />
+                                    <label class="label-text-alt mt-1 opacity-60">智能体的唯一标识符。</label>
+                                </div>
+
+                                <!-- Description -->
+                                <div class="form-control md:col-span-2">
+                                    <label class="label font-bold text-sm text-slate-600">描述 (用于路由)</label>
+                                    <input type="text" v-model="editingAgent.config.description" class="input input-bordered w-full bg-slate-50 border-slate-200 focus:bg-white transition-all rounded-xl" />
+                                    <label class="label-text-alt mt-1 opacity-60">关键！GroupChat 依据此描述决定何时调用该智能体。</label>
+                                </div>
+
+                                <!-- System Message -->
+                                <div class="form-control md:col-span-2">
+                                    <label class="label font-bold text-sm text-slate-600">系统提示词 (人设)</label>
+                                    <textarea v-model="editingAgent.system_message" class="textarea textarea-bordered h-32 font-mono text-sm leading-relaxed bg-slate-50 border-slate-200 focus:bg-white transition-all rounded-xl"></textarea>
+                                </div>
+
+                                <div class="divider md:col-span-2 text-xs font-bold opacity-40">高级设置</div>
+
+                                <!-- Human Input -->
+                                <div class="form-control">
+                                    <label class="label font-bold text-sm text-slate-600">人类介入模式</label>
+                                    <select v-model="editingAgent.config.human_input_mode" class="select select-bordered w-full bg-slate-50 border-slate-200 focus:bg-white transition-all rounded-xl">
+                                        <option value="NEVER">NEVER (全自动)</option>
+                                        <option value="TERMINATE">TERMINATE (结束时询问)</option>
+                                        <option value="ALWAYS">ALWAYS (总是询问)</option>
+                                    </select>
+                                </div>
+
+                                <!-- Temperature -->
+                                <div class="form-control">
+                                    <label class="label font-bold text-sm text-slate-600">创造力 (Temperature): {{ editingAgent.config.temperature }}</label>
+                                    <input type="range" min="0" max="1" step="0.1" v-model.number="editingAgent.config.temperature" class="range range-primary range-xs mt-2" />
+                                    <div class="w-full flex justify-between text-xs px-2 mt-1 opacity-50">
+                                        <span>严谨</span>
+                                        <span>发散</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
 
         <!-- Toast Notification -->
         <div v-if="toast.show" class="toast toast-top toast-center z-50">
-            <div class="alert" :class="toast.type === 'error' ? 'alert-error' : 'alert-success'">
+            <div class="alert shadow-lg" :class="toast.type === 'error' ? 'alert-error' : 'alert-success'">
+                <i v-if="toast.type === 'success'" class="fa-solid fa-check-circle"></i>
+                <i v-else class="fa-solid fa-circle-exclamation"></i>
                 <span>{{ toast.message }}</span>
             </div>
         </div>
 
     </div>
+    {% endraw %}
 
     <script>
-        const { createApp, ref, onMounted, computed, nextTick } = Vue;
-        // Check if dependencies loaded
-        if (!window.Vue || !window.axios || !window.markdownit) {
-            document.getElementById('error-overlay').style.display = 'block';
-            document.getElementById('error-overlay').innerHTML = '<h3>Critical Error: Dependencies failed to load. Please check your internet connection.</h3>';
-            throw new Error('Dependencies missing');
-        }
-
+        const { createApp, ref, onMounted, computed, nextTick, watch } = Vue;
         const md = window.markdownit();
 
         // API Configuration
@@ -287,177 +500,478 @@
             if (hostname === '127.0.0.1' || hostname === 'localhost') {
                 return '/api';
             }
-            // 生产环境 Render 后端地址
             return 'https://autogen-demo-4tl4.onrender.com/api';
         };
         const API_BASE = getApiBase();
 
+        // Axios setup for cookies
+        axios.defaults.withCredentials = true;
+
         createApp({
             setup() {
-                // State
-                const currentTab = ref('chat'); // 'chat' or 'agents'
+                // Global State
+                const currentTab = ref('chat'); 
                 const agents = ref([]);
+                const loadingAgents = ref(false);
+                const toast = ref({ show: false, message: '', type: 'info' });
+                
+                // Auth State
+                const isLoggedIn = ref(false);
+                const currentUser = ref(null);
+                const isRegisterMode = ref(false);
+                const authForm = ref({ username: '', password: '' });
+                const authLoading = ref(false);
+                const isGuest = ref(false);
+
+                // Chat State
+                const conversations = ref([]);
+                const currentConversation = ref(null);
+                const loadingConversations = ref(false);
+                const showAgentSelector = ref(false);
+
                 const selectedAgentIds = ref([]);
                 const messages = ref([]);
                 const userInput = ref('');
                 const isSending = ref(false);
-                const loadingAgents = ref(false);
-                const isEditing = ref(false);
-                
-                // Form State
-                const form = ref({
-                    id: null,
-                    name: '',
-                    system_message: '',
-                    config: {
-                        description: '',
-                        human_input_mode: 'NEVER',
-                        max_consecutive_auto_reply: 10,
-                        temperature: 0.7
-                    }
-                });
-
-                // Toast State
-                const toast = ref({ show: false, message: '', type: 'info' });
-
-                // Refs
                 const chatContainer = ref(null);
 
-                // Methods
+                // Agent Editor State
+                const editingAgent = ref(null);
+
+                // Helpers
                 const showToast = (msg, type = 'info') => {
                     toast.value = { show: true, message: msg, type };
                     setTimeout(() => toast.value.show = false, 3000);
                 };
 
+                const getAgentName = (id) => {
+                    const a = agents.value.find(x => x.id === id);
+                    return a ? a.name : '未知';
+                };
+
+                // --- Auth Actions ---
+                const checkLoginStatus = async () => {
+                    try {
+                        const res = await axios.get(`${API_BASE}/me`);
+                        if (res.data) {
+                            currentUser.value = res.data;
+                            isLoggedIn.value = true;
+                            isGuest.value = (res.data.id === 'guest');
+                            fetchAgents();
+                            fetchConversations();
+                        } else {
+                            isLoggedIn.value = false;
+                            isGuest.value = false;
+                        }
+                    } catch (e) {
+                        isLoggedIn.value = false;
+                        isGuest.value = false;
+                    }
+                };
+
+                const handleAuth = async () => {
+                    if (!authForm.value.username || !authForm.value.password) {
+                        showToast('请输入用户名和密码', 'error');
+                        return;
+                    }
+                    
+                    authLoading.value = true;
+                    try {
+                        const endpoint = isRegisterMode.value ? '/register' : '/login';
+                        const res = await axios.post(`${API_BASE}${endpoint}`, authForm.value);
+                        
+                        if (isRegisterMode.value) {
+                            showToast('注册成功，请登录', 'success');
+                            isRegisterMode.value = false; // Switch to login
+                        } else {
+                            showToast('登录成功', 'success');
+                            currentUser.value = res.data.user;
+                            isLoggedIn.value = true;
+                            isGuest.value = false;
+                            fetchAgents();
+                            fetchConversations();
+                        }
+                    } catch (e) {
+                        showToast(e.response?.data?.error || '操作失败', 'error');
+                    } finally {
+                        authLoading.value = false;
+                    }
+                };
+
+                const handleGuestLogin = async () => {
+                    authLoading.value = true;
+                    try {
+                        const res = await axios.post(`${API_BASE}/guest_login`);
+                        currentUser.value = res.data.user;
+                        isLoggedIn.value = true;
+                        isGuest.value = true;
+                        fetchAgents();
+                        // Guest has no saved conversations initially, or handled in-memory if needed
+                        conversations.value = [];
+                        createNewConversation(); // Start fresh
+                        showToast('已进入访客模式，数据不会保存', 'warning');
+                    } catch (e) {
+                        showToast('访客登录失败', 'error');
+                    } finally {
+                        authLoading.value = false;
+                    }
+                };
+
+                const logout = async () => {
+                    try {
+                        await axios.post(`${API_BASE}/logout`);
+                        isLoggedIn.value = false;
+                        currentUser.value = null;
+                        agents.value = [];
+                        messages.value = [];
+                        conversations.value = [];
+                        currentConversation.value = null;
+                        selectedAgentIds.value = [];
+                        authForm.value = { username: '', password: '' };
+                        showToast('已退出登录', 'info');
+                    } catch (e) {
+                        console.error(e);
+                    }
+                };
+
+                // --- API Actions ---
+
                 const fetchAgents = async () => {
+                    if (!isLoggedIn.value) return;
+
+                    if (isGuest.value) {
+                        if (agents.value.length === 0) {
+                            agents.value = [
+                                {
+                                    id: 101,
+                                    name: "史蒂夫·乔布斯",
+                                    system_message: "你就是史蒂夫·乔布斯。你追求极致的完美，对产品设计和用户体验有着近乎偏执的要求。你说话直率，甚至有些刻薄，但总是能一针见血地指出问题。你推崇“极简主义”，痛恨平庸。在对话中，你要展现出你的远见卓识和对改变世界的渴望。",
+                                    config: { description: "已故苹果创始人，产品设计与用户体验专家，追求完美与极简。", temperature: 0.9, human_input_mode: "ALWAYS" }
+                                },
+                                {
+                                    id: 102,
+                                    name: "伊隆·马斯克",
+                                    system_message: "你是伊隆·马斯克。你是一个物理学第一性原理的信徒，总是思考如何通过技术让人类成为跨行星物种。你说话快，思维跳跃，喜欢用硬核的工程术语。你非常乐观，对时间线总是过于自信。你关注能源、航天、AI 和脑机接口。",
+                                    config: { description: "SpaceX/Tesla 创始人，关注第一性原理、工程与未来科技。", temperature: 1.0, human_input_mode: "ALWAYS" }
+                                },
+                                {
+                                    id: 103,
+                                    name: "孔子",
+                                    system_message: "你是孔丘，字仲尼，人称孔子。你是儒家学派的创始人，万世师表。你说话引经据典，重视“仁”、“义”、“礼”、“智”、“信”。你总是循循善诱，试图用道德和礼教来感化提问者。你的语言风格古朴典雅，但要让现代人听得懂。",
+                                    config: { description: "儒家至圣先师，擅长道德教化、哲学思考与人生智慧。", temperature: 0.6, human_input_mode: "ALWAYS" }
+                                },
+                                {
+                                    id: 104,
+                                    name: "李白",
+                                    system_message: "你是李白，号青莲居士，人称“诗仙”。你性格豪放不羁，热爱美酒与明月。你说话充满了浪漫主义色彩，动不动就吟诗作对。你想象力丰富，不拘小节，对世俗的权贵不屑一顾，追求精神的绝对自由。",
+                                    config: { description: "唐代浪漫主义诗人，擅长文学创作、创意灵感与情感表达。", temperature: 1.0, human_input_mode: "ALWAYS" }
+                                },
+                                {
+                                    id: 105,
+                                    name: "夏洛克·福尔摩斯",
+                                    system_message: "你是夏洛克·福尔摩斯。你是一个高功能的反社会人格（自称），世界上唯一的咨询侦探。你极其理性，观察力敏锐，擅长演绎推理。你说话语速快，逻辑严密，对他人的情感波动不感兴趣，只关注事实和真相。你喜欢用排除法解决问题。",
+                                    config: { description: "咨询侦探，擅长逻辑推理、细节观察与事实分析。", temperature: 0.3, human_input_mode: "ALWAYS" }
+                                }
+                            ];
+                        }
+                        return;
+                    }
+
                     loadingAgents.value = true;
                     try {
                         const res = await axios.get(`${API_BASE}/agents`);
                         agents.value = res.data;
-                        // 默认选中所有 agents
-                        if (selectedAgentIds.value.length === 0) {
-                            selectedAgentIds.value = agents.value.map(a => a.id);
-                        }
                     } catch (e) {
-                        showToast('Failed to load agents: ' + e.message, 'error');
-                        console.error(e);
+                        if (e.response && e.response.status === 401) {
+                            isLoggedIn.value = false;
+                        } else {
+                            showToast('加载智能体失败: ' + e.message, 'error');
+                        }
                     } finally {
                         loadingAgents.value = false;
                     }
                 };
 
-                const openCreateModal = () => {
-                    isEditing.value = false;
-                    form.value = {
-                        id: null,
-                        name: '',
-                        system_message: '',
-                        config: {
-                            description: '',
-                            human_input_mode: 'NEVER',
-                            max_consecutive_auto_reply: 10,
-                            temperature: 0.7
-                        }
-                    };
-                    document.getElementById('agent_modal').showModal();
-                };
+                // --- Conversation Actions ---
 
-                const editAgent = (agent) => {
-                    isEditing.value = true;
-                    form.value = JSON.parse(JSON.stringify(agent)); // Deep copy
-                    // Ensure config object exists
-                    if (!form.value.config) {
-                        form.value.config = {
-                            description: '',
-                            human_input_mode: 'NEVER',
-                            max_consecutive_auto_reply: 10,
-                            temperature: 0.7
-                        };
+                const fetchConversations = async () => {
+                    if (isGuest.value) return; // 访客不保存列表
+                    loadingConversations.value = true;
+                    try {
+                        const res = await axios.get(`${API_BASE}/conversations`);
+                        conversations.value = res.data;
+                        // Optionally load most recent
+                        // if (conversations.value.length > 0) loadConversation(conversations.value[0]);
+                    } catch (e) {
+                        console.error("Fetch conversations failed", e);
+                    } finally {
+                        loadingConversations.value = false;
                     }
-                    document.getElementById('agent_modal').showModal();
                 };
 
-                const closeModal = () => {
-                    document.getElementById('agent_modal').close();
+                const createNewConversation = () => {
+                    // Create a draft conversation object
+                    // id: null indicates it's not saved yet (except for guest which uses temp id)
+                    currentConversation.value = { 
+                        id: isGuest.value ? 'guest_' + Date.now() : null, 
+                        title: '新会话', 
+                        messages: [] 
+                    };
+                    messages.value = [];
+                    selectedAgentIds.value = [];
+                    showAgentSelector.value = true;
                 };
 
-                const saveAgent = async () => {
-                    if (!form.value.name) {
-                        showToast('Name is required', 'error');
+                const createNewConversationWithAgent = (agent) => {
+                    currentConversation.value = { 
+                        id: isGuest.value ? 'guest_' + Date.now() : null, 
+                        title: agent.name, 
+                        messages: [] 
+                    };
+                    messages.value = [];
+                    selectedAgentIds.value = [agent.id];
+                    showAgentSelector.value = false; // Skip selector since we picked one
+                    currentTab.value = 'chat';
+                };
+
+                const loadConversation = async (conv) => {
+                    currentConversation.value = conv;
+                    messages.value = conv.messages || []; // Assuming backend returns messages with list, or we need to fetch detail
+                    
+                    // If messages are not in list, fetch detail
+                    // For now assume simple structure. If list doesn't have messages, fetch:
+                    if (!conv.messages) {
+                        try {
+                            const res = await axios.get(`${API_BASE}/conversations/${conv.id}`);
+                            currentConversation.value = res.data;
+                            messages.value = res.data.messages || [];
+                        } catch(e) {
+                            showToast("加载会话详情失败", "error");
+                        }
+                    }
+                    
+                    // Restore agents?
+                    // Ideally backend stores which agents were in conversation.
+                    // For now, let user re-select or keep current if not stored.
+                    // If your backend `Conversation` model stores `agent_ids`, load them here:
+                    // selectedAgentIds.value = conv.agent_ids || [];
+                    
+                    // If no agents stored, show selector
+                    if (!selectedAgentIds.value || selectedAgentIds.value.length === 0) {
+                        // showAgentSelector.value = true; 
+                    } else {
+                        showAgentSelector.value = false;
+                    }
+                    
+                    scrollToBottom();
+                };
+
+                // --- Chat Logic ---
+
+                const toggleAgentSelection = (id) => {
+                    const idx = selectedAgentIds.value.indexOf(id);
+                    if (idx > -1) {
+                        selectedAgentIds.value.splice(idx, 1);
+                    } else {
+                        selectedAgentIds.value.push(id);
+                    }
+                };
+
+                const confirmAgents = () => {
+                    if (selectedAgentIds.value.length === 0) {
+                        showToast('请至少选择一个智能体', 'error');
                         return;
                     }
-
-                    try {
-                        if (isEditing.value) {
-                            await axios.delete(`${API_BASE}/agents/${form.value.id}`);
-                        }
-                        
-                        await axios.post(`${API_BASE}/agents`, form.value);
-                        showToast(isEditing.value ? 'Agent updated' : 'Agent created', 'success');
-                        closeModal();
-                        fetchAgents();
-                    } catch (e) {
-                        showToast('Error saving agent: ' + e.message, 'error');
-                    }
-                };
-
-                const deleteAgent = async (id) => {
-                    if (!confirm('Are you sure you want to delete this agent?')) return;
-                    try {
-                        await axios.delete(`${API_BASE}/agents/${id}`);
-                        showToast('Agent deleted', 'success');
-                        fetchAgents();
-                    } catch (e) {
-                        showToast('Error deleting agent: ' + e.message, 'error');
-                    }
+                    showAgentSelector.value = false;
+                    
+                    // If this is a brand new conversation (not guest), create it now?
+                    // Or wait for first message. Let's wait for first message.
                 };
 
                 const sendMessage = async () => {
                     if (!userInput.value.trim() || isSending.value) return;
                     if (selectedAgentIds.value.length === 0) {
-                        showToast('Please select at least one agent', 'error');
+                        showToast('请先选择参与者', 'error');
+                        showAgentSelector.value = true;
                         return;
                     }
 
                     const text = userInput.value;
                     userInput.value = '';
                     
-                    // Optimistic UI update
-                    messages.value.push({
+                    // 1. Optimistic User Message
+                    const userMsg = {
                         role: 'user',
-                        name: 'You',
+                        name: 'User',
                         content: text,
                         timestamp: new Date().toISOString()
-                    });
-
+                    };
+                    messages.value.push(userMsg);
                     isSending.value = true;
                     scrollToBottom();
 
                     try {
-                        const res = await axios.post(`${API_BASE}/chat`, {
-                            message: text,
-                            agent_ids: selectedAgentIds.value
-                        });
-                        
-                        if (res.data.messages && Array.isArray(res.data.messages)) {
-                            const newMessages = res.data.messages.filter((m, idx) => {
-                                return !(m.role === 'user' && m.content === text);
-                            });
-                            messages.value.push(...newMessages);
+                        let convId = isGuest.value ? null : currentConversation.value?.id;
+
+                        // Create conversation if new and not guest
+                        if (!isGuest.value && !convId) {
+                            try {
+                                const res = await axios.post(`${API_BASE}/conversations`, {
+                                    title: text.substring(0, 20),
+                                    agent_ids: selectedAgentIds.value
+                                });
+                                currentConversation.value = res.data;
+                                convId = res.data.id;
+                                // Add to list
+                                conversations.value.unshift(res.data);
+                            } catch (e) {
+                                throw new Error("创建会话失败: " + e.message);
+                            }
                         }
-                    } catch (e) {
-                        messages.value.push({
-                            role: 'system',
-                            content: 'Error: ' + (e.response?.data?.error || e.message)
+
+                        // 2. Prepare Payload
+                        const payload = {
+                            message: text,
+                            conversation_id: convId,
+                            agent_ids: selectedAgentIds.value
+                        };
+
+                        if (isGuest.value) {
+                            // Guest passes history and full agents
+                            payload.history = messages.value.map(m => ({
+                                role: m.role,
+                                content: m.content,
+                                name: m.name
+                            }));
+                            const selectedAgents = agents.value.filter(a => selectedAgentIds.value.includes(a.id));
+                            payload.agents = selectedAgents.map(a => ({
+                                name: a.name,
+                                system_message: a.system_message,
+                                description: a.config?.description,
+                                config: a.config || {}
+                            }));
+                        }
+
+                        // 3. Streaming Request
+                        const controller = new AbortController();
+                        abortController.value = controller;
+                        
+                        const response = await fetch(`${API_BASE}/chat/stream`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                // Add auth headers if needed, but cookies should handle it if same origin/CORS allows
+                            },
+                            body: JSON.stringify(payload),
+                            signal: controller.signal
                         });
+
+                        if (!response.ok) {
+                            if (response.status === 401) {
+                                isLoggedIn.value = false;
+                                throw new Error("登录已过期");
+                            }
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+
+                        // Create a placeholder message for the assistant response if not exists
+                        // Note: Backend might send multiple chunks. We might want to append to last message if role is same?
+                        // Or just let the stream handler push messages.
+
+                        const reader = response.body.getReader();
+                        const decoder = new TextDecoder();
+                        let buffer = '';
+
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+                            
+                            buffer += decoder.decode(value, { stream: true });
+                            const lines = buffer.split('\n\n');
+                            buffer = lines.pop(); // Keep incomplete line
+
+                            for (const line of lines) {
+                                if (line.startsWith('data: ')) {
+                                    const jsonStr = line.slice(6);
+                                    if (jsonStr === '[DONE]') break;
+                                    
+                                    try {
+                                        const msg = JSON.parse(jsonStr);
+                                        
+                                        if (msg.error) {
+                                            messages.value.push({ role: 'system', content: `Error: ${msg.error}`, timestamp: new Date().toISOString() });
+                                            continue;
+                                        }
+
+                                        // Handling different message types from backend stream
+                                        // Case A: It's a new conversation object (first response)
+                                        if (msg.conversation_id) {
+                                            if (!currentConversation.value) {
+                                                // Should already be set if we created it above, but just in case
+                                                currentConversation.value = { id: msg.conversation_id, title: text.substring(0, 20), messages: [] };
+                                                if(!isGuest.value) fetchConversations();
+                                            }
+                                            continue;
+                                        }
+
+                                        // Case B: It's a chat message
+                                        
+                                        // Deduplication Check:
+                                        // AutoGen might echo the User's message back to us.
+                                        // If the message is from 'user' and content matches our last message, ignore it.
+                                        if (msg.role === 'user' || msg.name === 'User') {
+                                            const lastMsg = messages.value[messages.value.length - 1];
+                                            if (lastMsg && lastMsg.role === 'user' && lastMsg.content.trim() === msg.content.trim()) {
+                                                console.log("Skipping duplicate user message from stream");
+                                                continue;
+                                            }
+                                        }
+
+                                        // We push it to messages. 
+                                        // To avoid duplicates if re-rendering, ensure keys.
+                                        if (!msg.timestamp) msg.timestamp = new Date().toISOString();
+                                        messages.value.push(msg);
+                                        scrollToBottom();
+
+                                    } catch (e) {
+                                        console.error('Error parsing SSE:', e);
+                                    }
+                                }
+                            }
+                        }
+
+                        // Refresh conversations list to update timestamp
+                        if (!isGuest.value) fetchConversations();
+
+                    } catch (e) {
+                        if (e.name === 'AbortError') {
+                            messages.value.push({
+                                role: 'system',
+                                content: '已停止生成',
+                                timestamp: new Date().toISOString()
+                            });
+                        } else {
+                            messages.value.push({
+                                role: 'system',
+                                content: '发送失败: ' + e.message,
+                                timestamp: new Date().toISOString()
+                            });
+                        }
                     } finally {
                         isSending.value = false;
+                        abortController.value = null;
                         scrollToBottom();
                     }
                 };
 
+                const stopGeneration = () => {
+                    if (abortController.value) {
+                        abortController.value.abort();
+                    }
+                };
+
                 const clearChat = () => {
-                    if(confirm('Clear chat history?')) {
+                    if(confirm('确定要清空当前会话记录吗？')) {
                         messages.value = [];
                     }
                 };
@@ -470,6 +984,103 @@
                     });
                 };
 
+                // --- Agent Editor Logic ---
+
+                const createNewAgent = () => {
+                    editingAgent.value = {
+                        id: null,
+                        name: '',
+                        system_message: '',
+                        config: {
+                            description: '',
+                            human_input_mode: 'NEVER',
+                            max_consecutive_auto_reply: 10,
+                            temperature: 0.7
+                        }
+                    };
+                };
+
+                const selectAgentToEdit = (agent) => {
+                    // Deep copy to avoid mutating list directly before save
+                    editingAgent.value = JSON.parse(JSON.stringify(agent));
+                    if (!editingAgent.value.config) {
+                        editingAgent.value.config = {
+                            description: '',
+                            human_input_mode: 'NEVER',
+                            max_consecutive_auto_reply: 10,
+                            temperature: 0.7
+                        };
+                    }
+                };
+
+                const saveAgent = async () => {
+                    if (!editingAgent.value.name) {
+                        showToast('名称不能为空', 'error');
+                        return;
+                    }
+
+                    if (isGuest.value) {
+                        if (editingAgent.value.id) {
+                            const idx = agents.value.findIndex(a => a.id === editingAgent.value.id);
+                            if (idx !== -1) {
+                                agents.value[idx] = { ...editingAgent.value };
+                            }
+                        } else {
+                            agents.value.push({
+                                ...editingAgent.value,
+                                id: Date.now(),
+                                user_id: 'guest'
+                            });
+                        }
+                        editingAgent.value = null;
+                        showToast('保存成功 (临时)', 'success');
+                        return;
+                    }
+
+                    try {
+                        if (editingAgent.value.id) {
+                            // Delete old and create new (Simplistic update)
+                            await axios.delete(`${API_BASE}/agents/${editingAgent.value.id}`);
+                        }
+                        
+                        await axios.post(`${API_BASE}/agents`, editingAgent.value);
+                        showToast('保存成功', 'success');
+                        fetchAgents();
+                        editingAgent.value = null; 
+                    } catch (e) {
+                         if (e.response && e.response.status === 401) {
+                            isLoggedIn.value = false;
+                        } else {
+                            showToast('保存失败: ' + e.message, 'error');
+                        }
+                    }
+                };
+
+                const deleteAgent = async (id) => {
+                    if (!confirm('确定要删除这个智能体吗？')) return;
+                    
+                    if (isGuest.value) {
+                        agents.value = agents.value.filter(a => a.id !== id);
+                        if (editingAgent.value?.id === id) editingAgent.value = null;
+                        showToast('删除成功 (临时)', 'success');
+                        return;
+                    }
+
+                    try {
+                        await axios.delete(`${API_BASE}/agents/${id}`);
+                        showToast('已删除', 'success');
+                        fetchAgents();
+                        editingAgent.value = null;
+                    } catch (e) {
+                        if (e.response && e.response.status === 401) {
+                            isLoggedIn.value = false;
+                        } else {
+                            showToast('删除失败', 'error');
+                        }
+                    }
+                };
+
+                // Utilities
                 const formatTime = (isoString) => {
                     if (!isoString) return '';
                     return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -479,59 +1090,9 @@
                     return md.render(text || '');
                 };
 
-                // Templates
-                const templates = {
-                    'Coder': {
-                        name: 'Coder',
-                        system_message: 'You are a skilled Python developer. You write clean, efficient code. When asked to write code, output the code in a code block.',
-                        config: { description: 'Writes code to solve problems.', human_input_mode: 'NEVER', max_consecutive_auto_reply: 10, temperature: 0.2 }
-                    },
-                    'Product Manager': {
-                        name: 'Product Manager',
-                        system_message: 'You are a Product Manager. You analyze requirements, propose features, and ensure the product meets user needs.',
-                        config: { description: 'Plans features and requirements.', human_input_mode: 'NEVER', max_consecutive_auto_reply: 10, temperature: 0.7 }
-                    },
-                    'Writer': {
-                        name: 'Writer',
-                        system_message: 'You are a creative writer. You write engaging content, blog posts, and stories.',
-                        config: { description: 'Writes content.', human_input_mode: 'NEVER', max_consecutive_auto_reply: 10, temperature: 0.8 }
-                    }
-                };
-
-                const toggleSelectAll = () => {
-                    if (selectedAgentIds.value.length === agents.value.length) {
-                        selectedAgentIds.value = [];
-                    } else {
-                        selectedAgentIds.value = agents.value.map(a => a.id);
-                    }
-                };
-
-                const duplicateAgent = async (agent) => {
-                    try {
-                        await axios.post(`${API_BASE}/agents/${agent.id}/duplicate`);
-                        showToast(`Agent ${agent.name} duplicated`, 'success');
-                        fetchAgents();
-                    } catch (e) {
-                        showToast('Error duplicating agent: ' + e.message, 'error');
-                    }
-                };
-
-                const applyTemplate = (tpl) => {
-                    form.value.name = tpl.name;
-                    form.value.system_message = tpl.system_message;
-                    form.value.config = { ...tpl.config };
-                };
-                
-                const handleKeydown = (e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        sendMessage();
-                    }
-                };
-
                 // Lifecycle
                 onMounted(() => {
-                    fetchAgents();
+                    checkLoginStatus();
                 });
 
                 return {
@@ -542,26 +1103,40 @@
                     userInput,
                     isSending,
                     loadingAgents,
-                    isEditing,
-                    form,
                     toast,
                     chatContainer,
-                    templates,
+                    editingAgent,
+                    // Auth
+                    isLoggedIn,
+                    currentUser,
+                    isRegisterMode,
+                    authForm,
+                    authLoading,
+                    isGuest,
+                    handleAuth,
+                    handleGuestLogin,
+                    logout,
                     // methods
-                    fetchAgents,
-                    openCreateModal,
-                    editAgent,
-                    closeModal,
-                    saveAgent,
-                    deleteAgent,
+                    toggleAgentSelection,
+                    confirmAgents,
                     sendMessage,
                     clearChat,
+                    createNewAgent,
+                    selectAgentToEdit,
+                    saveAgent,
+                    deleteAgent,
+                    getAgentName,
                     formatTime,
                     renderMarkdown,
-                    toggleSelectAll,
-                    duplicateAgent,
-                    applyTemplate,
-                    handleKeydown
+                    // Conversations
+                    conversations,
+                    currentConversation,
+                    loadingConversations,
+                    showAgentSelector,
+                    fetchConversations,
+                    createNewConversation,
+                    createNewConversationWithAgent,
+                    loadConversation
                 };
             }
         }).mount('#app');
