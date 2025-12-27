@@ -3,7 +3,7 @@ services:
     name: autogen-demo
     env: python
     buildCommand: pip install -r backend/requirements.txt
-    startCommand: gunicorn --chdir backend app:app
+    startCommand: gunicorn --chdir backend --bind 0.0.0.0:10000 app:app
     envVars:
       - key: DEEPSEEK_API_KEY
         sync: false
