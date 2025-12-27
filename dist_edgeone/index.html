@@ -253,7 +253,7 @@
     // const API_BASE = 'http://127.0.0.1:5000/api'; 
     
     // 如果你已经部署了后端，请取消下方注释并填入真实地址：
-    const API_BASE = 'https://autogen-backend-demo.onrender.com/api'; 
+    const API_BASE = 'https://autogen-demo-4tl4.onrender.com/api'; 
     // (注意：上面这个是示例地址，你需要替换为你自己的)
 
     // 自动检测逻辑：如果当前页面是 https 协议，尝试连接 Render 后端
@@ -263,8 +263,7 @@
             return '/api'; // 使用相对路径，由 Flask 代理或直接服务
         }
         // 生产环境 EdgeOne
-        // TODO: 请用户在这里填入 Render 的后端地址
-        return 'https://YOUR-RENDER-SERVICE-NAME.onrender.com/api';
+        return 'https://autogen-demo-4tl4.onrender.com/api';
     }
 
     // const API_BASE = getApiBase(); // 暂时手动指定，方便用户理解
