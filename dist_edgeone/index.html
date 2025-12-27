@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoGen 多智能体协作平台</title>
+    <style>
+        :root {
+            --primary-color: #3b82f6;
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --text-color: #1f2937;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .tabs {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+            gap: 10px;
+        }
+
+        .tab-btn {
+            padding: 10px 20px;
+            background-color: #e5e7eb;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .tab-btn.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            box-sizing: border-box;
+        }
+
+        button.btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        button.btn-danger {
+            background-color: #ef4444;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+
+        /* Agent List */
+        .agent-list {
+            margin-top: 20px;
+        }
+        
+        .agent-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        /* Chat */
+        .chat-layout {
+            display: flex;
+            gap: 20px;
+            height: 70vh;
+        }
+
+        .agent-sidebar {
+            width: 250px;
+            border-right: 1px solid #eee;
+            padding-right: 10px;
+            overflow-y: auto;
+        }
+
+        .chat-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .messages-area {
+            flex: 1;
+            overflow-y: auto;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background-color: #f9fafb;
+        }
+
+        .message {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 8px;
+            max-width: 80%;
+        }
+
+        .message.user {
+            background-color: #dbeafe;
+            margin-left: auto;
+            color: #1e40af;
+        }
+
+        .message.agent {
+            background-color: white;
+            border: 1px solid #e5e7eb;
+            margin-right: auto;
+        }
+
+        .message-header {
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-bottom: 4px;
+            opacity: 0.7;
+        }
+
+        .input-area {
+            display: flex;
+            gap: 10px;
+        }
+
+        .loading {
+            text-align: center;
+            color: #6b7280;
+            font-style: italic;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>AutoGen 多智能体协作平台</h1>
+        <p>无 NPM 依赖版 (Python Native UI)</p>
+    </header>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('agents')">智能体设置</button>
+        <button class="tab-btn" onclick="switchTab('chat')">对话协作</button>
+    </div>
+
+    <!-- Agent Settings Tab -->
+    <div id="agents" class="tab-content active">
+        <h2>创建新智能体</h2>
+        <div class="form-group">
+            <label>名称 (Name)</label>
+            <input type="text" id="agentName" placeholder="例如: Coder, ProductManager">
+        </div>
+        <div class="form-group">
+            <label>系统提示词 (System Message)</label>
+            <textarea id="agentSystemMsg" rows="4" placeholder="定义智能体的角色和行为..."></textarea>
+        </div>
+        <button class="btn-primary" onclick="createAgent()">创建智能体</button>
+
+        <h3>已有智能体列表</h3>
+        <div id="agentList" class="agent-list">
+            <!-- Loaded via JS -->
+        </div>
+    </div>
+
+    <!-- Chat Tab -->
+    <div id="chat" class="tab-content">
+        <div class="chat-layout">
+            <div class="agent-sidebar">
+                <h3>选择参与者</h3>
+                <div id="chatAgentList">
+                    <!-- Checkboxes loaded via JS -->
+                </div>
+            </div>
+            <div class="chat-main">
+                <div id="messagesArea" class="messages-area">
+                    <div style="text-align: center; color: #aaa; margin-top: 20px;">
+                        请在左侧选择智能体，并在下方输入任务开始协作。
+                    </div>
+                </div>
+                <div id="loading" class="loading">智能体正在思考和协作中，请稍候...</div>
+                <div class="input-area">
+                    <textarea id="chatInput" rows="2" style="flex:1" placeholder="输入你的任务..."></textarea>
+                    <button class="btn-primary" onclick="sendMessage()">发送</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // =========================================================================
+    // 重要配置：后端 API 地址
+    // 部署步骤：
+    // 1. 先部署后端到 Render，获取类似 https://xxx.onrender.com 的地址
+    // 2. 将下方地址替换为你的 Render 地址
+    // 3. 将本文件部署到 EdgeOne Pages
+    // =========================================================================
+    
+    // 默认连接本地后端 (调试用)
+    // const API_BASE = 'http://127.0.0.1:5000/api'; 
+    
+    // 如果你已经部署了后端，请取消下方注释并填入真实地址：
+    const API_BASE = 'https://autogen-backend-demo.onrender.com/api'; 
+    // (注意：上面这个是示例地址，你需要替换为你自己的)
+
+    // 自动检测逻辑：如果当前页面是 https 协议，尝试连接 Render 后端
+    // 如果是 http://127.0.0.1，连接本地后端
+    function getApiBase() {
+        if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') {
+            return '/api'; // 使用相对路径，由 Flask 代理或直接服务
+        }
+        // 生产环境 EdgeOne
+        // TODO: 请用户在这里填入 Render 的后端地址
+        return 'https://YOUR-RENDER-SERVICE-NAME.onrender.com/api';
+    }
+
+    // const API_BASE = getApiBase(); // 暂时手动指定，方便用户理解
+
+    // Tab Switching
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        
+        document.getElementById(tabId).classList.add('active');
+        // Find the button that calls this function (approximate)
+        const btns = document.querySelectorAll('.tab-btn');
+        if (tabId === 'agents') btns[0].classList.add('active');
+        if (tabId === 'chat') btns[1].classList.add('active');
+
+        if (tabId === 'chat') {
+            loadChatAgents();
+        } else {
+            loadAgents();
+        }
+    }
+
+    // Load Agents
+    async function loadAgents() {
+        try {
+            const res = await fetch(`${API_BASE}/agents`);
+            const agents = await res.json();
+            const list = document.getElementById('agentList');
+            list.innerHTML = '';
+            
+            agents.forEach(agent => {
+                const div = document.createElement('div');
+                div.className = 'agent-item';
+                div.innerHTML = `
+                    <div>
+                        <strong>${agent.name}</strong>
+                        <div style="font-size:0.9em; color:#666; max-width: 500px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                            ${agent.system_message || 'No system message'}
+                        </div>
+                    </div>
+                    <button class="btn-danger" onclick="deleteAgent(${agent.id})">删除</button>
+                `;
+                list.appendChild(div);
+            });
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    // Create Agent
+    async function createAgent() {
+        const name = document.getElementById('agentName').value;
+        const system_message = document.getElementById('agentSystemMsg').value;
+        
+        if (!name) return alert('Name is required');
+
+        try {
+            await fetch(`${API_BASE}/agents`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, system_message })
+            });
+            document.getElementById('agentName').value = '';
+            document.getElementById('agentSystemMsg').value = '';
+            loadAgents();
+        } catch (err) {
+            alert('Failed to create agent');
+        }
+    }
+
+    // Delete Agent
+    async function deleteAgent(id) {
+        if(!confirm('Are you sure?')) return;
+        try {
+            await fetch(`${API_BASE}/agents/${id}`, { method: 'DELETE' });
+            loadAgents();
+        } catch (err) {
+            alert('Failed to delete');
+        }
+    }
+
+    // Chat Logic
+    async function loadChatAgents() {
+        try {
+            const res = await fetch(`${API_BASE}/agents`);
+            const agents = await res.json();
+            const container = document.getElementById('chatAgentList');
+            container.innerHTML = '';
+
+            if (agents.length === 0) {
+                container.innerHTML = '<p style="font-size:0.9em; color:red">请先在设置页添加智能体</p>';
+                return;
+            }
+
+            agents.forEach(agent => {
+                const label = document.createElement('label');
+                label.style.display = 'block';
+                label.style.marginBottom = '5px';
+                label.innerHTML = `
+                    <input type="checkbox" value="${agent.id}" class="agent-checkbox">
+                    ${agent.name}
+                `;
+                container.appendChild(label);
+            });
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    async function sendMessage() {
+        const input = document.getElementById('chatInput');
+        const message = input.value.trim();
+        const checkboxes = document.querySelectorAll('.agent-checkbox:checked');
+        const agentIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+        if (!message) return;
+        if (agentIds.length === 0) return alert('请至少选择一个智能体参与对话');
+
+        // UI Update
+        const msgsArea = document.getElementById('messagesArea');
+        // Clear placeholder if exists
+        if (msgsArea.innerText.includes('请在左侧选择智能体')) msgsArea.innerHTML = '';
+
+        // Append User Message
+        appendMessage('User', message, 'user');
+        input.value = '';
+        
+        // Show loading
+        document.getElementById('loading').style.display = 'block';
+
+        try {
+            const res = await fetch(`${API_BASE}/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message, agent_ids: agentIds })
+            });
+            const data = await res.json();
+            
+            if (data.error) {
+                appendMessage('System', `Error: ${data.error}`, 'agent');
+            } else if (data.messages) {
+                // Filter and display
+                data.messages.forEach(msg => {
+                    if (msg.role !== 'system') {
+                        appendMessage(msg.name || msg.role, msg.content, 'agent');
+                    }
+                });
+            }
+        } catch (err) {
+            appendMessage('System', 'Network Error', 'agent');
+        } finally {
+            document.getElementById('loading').style.display = 'none';
+        }
+    }
+
+    function appendMessage(sender, text, type) {
+        const area = document.getElementById('messagesArea');
+        const div = document.createElement('div');
+        div.className = `message ${type}`;
+        div.innerHTML = `
+            <div class="message-header">${sender}</div>
+            <div style="white-space: pre-wrap;">${text}</div>
+        `;
+        area.appendChild(div);
+        area.scrollTop = area.scrollHeight;
+    }
+
+    // Initial Load
+    loadAgents();
+</script>
+
+</body>
+</html>
