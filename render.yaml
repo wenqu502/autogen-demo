@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: autogen-backend
+    name: autogen-demo
     env: python
     buildCommand: pip install -r backend/requirements.txt
     startCommand: gunicorn --chdir backend app:app
