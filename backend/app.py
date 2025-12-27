@@ -16,7 +16,14 @@ CORS(app, supports_credentials=True) # 允许跨域携带 cookie
 
 # 配置数据库
 # 默认值用于测试，实际应从 .env 读取
-db_url = os.environ.get('DATABASE_URL', 'sqlite:///autogen.db')
+# Render 等生产环境建议使用 PostgreSQL，这里使用 SQLite 作为 fallback
+# 使用绝对路径确保在 Render 上能正确写入
+basedir = os.path.abspath(os.path.dirname(__file__))
+default_db_path = os.path.join(basedir, 'autogen.db')
+db_url = os.environ.get('DATABASE_URL', f'sqlite:///{default_db_path}')
+
+print(f"Starting app with database: {db_url}")
+
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
