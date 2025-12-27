@@ -48,20 +48,42 @@
 
             <!-- Agents List (Selectable for Chat) -->
             <div v-if="currentTab === 'chat'" class="flex-1 overflow-y-auto p-2">
-                <div class="text-xs font-bold text-base-content/50 uppercase px-2 mb-2">选择参与的智能体</div>
+                <div class="flex justify-between items-center px-2 mb-2">
+                    <div class="text-xs font-bold text-base-content/50 uppercase">选择参与者</div>
+                    <button v-if="agents.length > 0" @click="toggleSelectAll" class="btn btn-xs btn-ghost text-xs font-normal">
+                        {{ selectedAgentIds.length === agents.length ? '全不选' : '全选' }}
+                    </button>
+                </div>
+                
                 <div v-if="loadingAgents" class="flex justify-center p-4"><span class="loading loading-spinner"></span></div>
                 <div v-else class="space-y-2">
-                    <label v-for="agent in agents" :key="agent.id" 
-                           class="flex items-center p-3 rounded-lg hover:bg-base-200 cursor-pointer border border-transparent hover:border-base-300 transition-all"
-                           :class="{'bg-primary/10 border-primary': selectedAgentIds.includes(agent.id)}">
-                        <input type="checkbox" :value="agent.id" v-model="selectedAgentIds" class="checkbox checkbox-primary checkbox-sm mr-3" />
-                        <div class="flex-1">
-                            <div class="font-bold">{{ agent.name }}</div>
+                    <div v-for="agent in agents" :key="agent.id" 
+                           class="group flex items-center p-2 rounded-lg hover:bg-base-200 border border-transparent hover:border-base-300 transition-all cursor-pointer"
+                           :class="{'bg-primary/5 border-primary/30': selectedAgentIds.includes(agent.id)}"
+                           @click="toggleSelection(agent.id)">
+                        
+                        <!-- Checkbox -->
+                        <input type="checkbox" :checked="selectedAgentIds.includes(agent.id)" class="checkbox checkbox-primary checkbox-sm mr-3 pointer-events-none" />
+                        
+                        <!-- Content -->
+                        <div class="flex-1 min-w-0">
+                            <div class="font-bold text-sm truncate">{{ agent.name }}</div>
                             <div class="text-xs opacity-60 truncate">{{ agent.config?.description || 'No description' }}</div>
                         </div>
-                    </label>
-                    <div v-if="agents.length === 0" class="text-center p-4 opacity-50 text-sm">
-                        暂无智能体，请先去配置
+
+                        <!-- Quick Edit Button (Visible on Hover) -->
+                        <button @click.stop="editAgent(agent)" class="btn btn-square btn-xs btn-ghost opacity-0 group-hover:opacity-100 transition-opacity" title="快速配置">
+                            <i class="fa-solid fa-gear text-base-content/50"></i>
+                        </button>
+                    </div>
+
+                    <!-- Empty State / Onboarding -->
+                    <div v-if="agents.length === 0" class="flex flex-col items-center justify-center p-6 text-center opacity-70 border-2 border-dashed border-base-300 rounded-xl mx-2">
+                        <i class="fa-solid fa-robot text-3xl mb-2 text-primary"></i>
+                        <p class="text-sm mb-3">暂无智能体</p>
+                        <button @click="createDemoAgents" class="btn btn-sm btn-primary">
+                            <i class="fa-solid fa-magic"></i> 一键生成示例
+                        </button>
                     </div>
                 </div>
             </div>
@@ -141,18 +163,37 @@
 
                 <!-- Input Area -->
                 <div class="p-4 bg-base-100 border-t border-base-200">
-                    <div class="flex gap-2">
-                        <textarea v-model="userInput" @keydown.enter.prevent="sendMessage"
-                                  placeholder="Type your message here..." 
-                                  class="textarea textarea-bordered flex-1 resize-none h-14 focus:outline-none"></textarea>
-                        <button @click="sendMessage" :disabled="isSending || !userInput.trim() || selectedAgentIds.length === 0" 
-                                class="btn btn-primary h-14 w-20">
-                            <i v-if="!isSending" class="fa-solid fa-paper-plane"></i>
-                            <span v-else class="loading loading-spinner"></span>
-                        </button>
+                    <div class="relative">
+                        <textarea v-model="userInput" 
+                                  @keydown.enter.exact.prevent="sendMessage"
+                                  @keydown.ctrl.enter="userInput += '\n'"
+                                  @input="adjustTextareaHeight"
+                                  ref="inputBox"
+                                  placeholder="描述您的任务... (Enter 发送, Ctrl+Enter 换行)" 
+                                  class="textarea textarea-bordered w-full resize-none min-h-[3.5rem] max-h-48 pr-24 leading-normal focus:outline-none text-base py-3"
+                                  rows="1"></textarea>
+                        
+                        <div class="absolute bottom-2 right-2 flex gap-2">
+                             <button @click="sendMessage" :disabled="isSending || !userInput.trim() || selectedAgentIds.length === 0" 
+                                class="btn btn-primary btn-sm h-10 px-4 shadow-lg transition-all hover:scale-105">
+                                <span v-if="!isSending" class="flex items-center gap-2">
+                                    发送 <i class="fa-solid fa-paper-plane"></i>
+                                </span>
+                                <span v-else class="loading loading-spinner loading-xs"></span>
+                            </button>
+                        </div>
                     </div>
-                    <div v-if="selectedAgentIds.length === 0" class="text-error text-xs mt-1">
-                        * 请至少选择一个智能体参与对话
+                    
+                    <div class="flex justify-between items-center mt-2 px-1">
+                        <div v-if="selectedAgentIds.length === 0" class="text-error text-xs flex items-center animate-bounce">
+                            <i class="fa-solid fa-circle-exclamation mr-1"></i> 请先在左侧选择至少一个智能体
+                        </div>
+                        <div v-else class="text-xs opacity-50">
+                            已选择 {{ selectedAgentIds.length }} 个智能体
+                        </div>
+                        <div class="text-xs opacity-40">
+                            Power by AutoGen & DeepSeek
+                        </div>
                     </div>
                 </div>
             </div>
@@ -285,8 +326,67 @@
 
                 // Refs
                 const chatContainer = ref(null);
+                const inputBox = ref(null);
 
                 // Methods
+                const adjustTextareaHeight = () => {
+                    const el = inputBox.value;
+                    if (el) {
+                        el.style.height = 'auto';
+                        el.style.height = Math.min(el.scrollHeight, 192) + 'px'; // Max 12rem (48 * 4px)
+                    }
+                };
+
+                const toggleSelection = (id) => {
+                    const idx = selectedAgentIds.value.indexOf(id);
+                    if (idx > -1) {
+                        selectedAgentIds.value.splice(idx, 1);
+                    } else {
+                        selectedAgentIds.value.push(id);
+                    }
+                };
+
+                const toggleSelectAll = () => {
+                    if (selectedAgentIds.value.length === agents.value.length) {
+                        selectedAgentIds.value = [];
+                    } else {
+                        selectedAgentIds.value = agents.value.map(a => a.id);
+                    }
+                };
+
+                const createDemoAgents = async () => {
+                    loadingAgents.value = true;
+                    try {
+                        const demos = [
+                            {
+                                name: "Product_Manager",
+                                system_message: "你是一个专业的产品经理。你的职责是分析用户需求，将其转化为清晰的功能列表和验收标准。请用简洁、结构化的语言输出。",
+                                config: { description: "负责需求分析和产品定义", temperature: 0.7 }
+                            },
+                            {
+                                name: "Python_Coder",
+                                system_message: "你是一个高级 Python 工程师。根据需求编写高质量、可运行的 Python 代码。代码必须包含注释，并遵循 PEP8 规范。请只输出代码和必要的解释。",
+                                config: { description: "负责编写 Python 代码", temperature: 0.2 }
+                            },
+                            {
+                                name: "Code_Reviewer",
+                                system_message: "你是一个严格的代码审查员。检查代码的安全性、效率和规范性。如果发现问题，请明确指出并提供修改建议。如果代码完美，请回复'LGTM'。",
+                                config: { description: "负责代码审查", temperature: 0.5 }
+                            }
+                        ];
+
+                        for (const agent of demos) {
+                            await axios.post(`${API_BASE}/agents`, agent);
+                        }
+                        await fetchAgents();
+                        showToast('已成功创建示例智能体团队！', 'success');
+                    } catch (e) {
+                        showToast('创建失败: ' + e.message, 'error');
+                    } finally {
+                        loadingAgents.value = false;
+                    }
+                };
+
                 const showToast = (msg, type = 'info') => {
                     toast.value = { show: true, message: msg, type };
                     setTimeout(() => toast.value.show = false, 3000);
@@ -395,6 +495,9 @@
 
                     isSending.value = true;
                     scrollToBottom();
+                    
+                    // Reset textarea height
+                    if(inputBox.value) inputBox.value.style.height = 'auto';
 
                     try {
                         const res = await axios.post(`${API_BASE}/chat`, {
@@ -463,6 +566,7 @@
                     form,
                     toast,
                     chatContainer,
+                    inputBox,
                     // methods
                     fetchAgents,
                     openCreateModal,
@@ -473,7 +577,11 @@
                     sendMessage,
                     clearChat,
                     formatTime,
-                    renderMarkdown
+                    renderMarkdown,
+                    toggleSelection,
+                    toggleSelectAll,
+                    adjustTextareaHeight,
+                    createDemoAgents
                 };
             }
         }).mount('#app');
