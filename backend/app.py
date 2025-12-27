@@ -58,6 +58,18 @@ def delete_agent(id):
     db.session.commit()
     return jsonify({"message": "Agent deleted"})
 
+@app.route('/api/agents/<int:id>/duplicate', methods=['POST'])
+def duplicate_agent(id):
+    original_agent = Agent.query.get_or_404(id)
+    new_agent = Agent(
+        name=f"{original_agent.name}_copy",
+        system_message=original_agent.system_message,
+        config=original_agent.config
+    )
+    db.session.add(new_agent)
+    db.session.commit()
+    return jsonify(new_agent.to_dict()), 201
+
 @app.route('/api/chat', methods=['POST'])
 def chat():
     data = request.json

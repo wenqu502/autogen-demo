@@ -21,9 +21,23 @@
         .markdown-body p { margin-bottom: 0.5em; }
         .markdown-body pre { background-color: #2d2d2d; color: #ccc; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; }
         .chat-bubble.markdown-body { max-width: 100%; overflow-x: hidden; }
+        /* Error overlay */
+        #error-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 9999; padding: 20px; color: red; overflow: auto; }
     </style>
+    <script>
+        window.onerror = function(msg, url, line, col, error) {
+            const overlay = document.getElementById('error-overlay');
+            if (overlay) {
+                overlay.style.display = 'block';
+                overlay.innerHTML += `<h3>Error Detected:</h3><pre>${msg}\nAt: ${url}:${line}:${col}\nStack: ${error?.stack}</pre><hr>`;
+            }
+            return false;
+        };
+    </script>
 </head>
 <body class="bg-base-200 h-screen overflow-hidden text-base-content">
+    <div id="error-overlay"></div>
+    
     <div id="app" v-cloak class="flex h-full w-full">
         
         <!-- Sidebar: Navigation & Agents -->
@@ -47,57 +61,41 @@
             </div>
 
             <!-- Agents List (Selectable for Chat) -->
-            <div v-if="currentTab === 'chat'" class="flex-1 overflow-y-auto p-2">
-                <div class="flex justify-between items-center px-2 mb-2">
-                    <div class="text-xs font-bold text-base-content/50 uppercase">选择参与者</div>
-                    <button v-if="agents.length > 0" @click="toggleSelectAll" class="btn btn-xs btn-ghost text-xs font-normal">
-                        {{ selectedAgentIds.length === agents.length ? '全不选' : '全选' }}
+            <div v-show="currentTab === 'chat'" class="flex-1 overflow-y-auto p-2">
+                <div class="flex items-center justify-between px-2 mb-2">
+                    <div class="text-xs font-bold text-base-content/50 uppercase">选择参与的智能体</div>
+                    <button @click="toggleSelectAll" class="btn btn-xs btn-ghost text-xs">
+                        {{ selectedAgentIds.length === agents.length ? '取消全选' : '全选' }}
                     </button>
                 </div>
-                
                 <div v-if="loadingAgents" class="flex justify-center p-4"><span class="loading loading-spinner"></span></div>
                 <div v-else class="space-y-2">
-                    <div v-for="agent in agents" :key="agent.id" 
-                           class="group flex items-center p-2 rounded-lg hover:bg-base-200 border border-transparent hover:border-base-300 transition-all cursor-pointer"
-                           :class="{'bg-primary/5 border-primary/30': selectedAgentIds.includes(agent.id)}"
-                           @click="toggleSelection(agent.id)">
-                        
-                        <!-- Checkbox -->
-                        <input type="checkbox" :checked="selectedAgentIds.includes(agent.id)" class="checkbox checkbox-primary checkbox-sm mr-3 pointer-events-none" />
-                        
-                        <!-- Content -->
-                        <div class="flex-1 min-w-0">
-                            <div class="font-bold text-sm truncate">{{ agent.name }}</div>
+                    <label v-for="agent in agents" :key="agent.id" 
+                           class="flex items-center p-3 rounded-lg hover:bg-base-200 cursor-pointer border border-transparent hover:border-base-300 transition-all"
+                           :class="{'bg-primary/10 border-primary': selectedAgentIds.includes(agent.id)}">
+                        <input type="checkbox" :value="agent.id" v-model="selectedAgentIds" class="checkbox checkbox-primary checkbox-sm mr-3" />
+                        <div class="flex-1">
+                            <div class="font-bold">{{ agent.name }}</div>
                             <div class="text-xs opacity-60 truncate">{{ agent.config?.description || 'No description' }}</div>
                         </div>
-
-                        <!-- Quick Edit Button (Visible on Hover) -->
-                        <button @click.stop="editAgent(agent)" class="btn btn-square btn-xs btn-ghost opacity-0 group-hover:opacity-100 transition-opacity" title="快速配置">
-                            <i class="fa-solid fa-gear text-base-content/50"></i>
-                        </button>
-                    </div>
-
-                    <!-- Empty State / Onboarding -->
-                    <div v-if="agents.length === 0" class="flex flex-col items-center justify-center p-6 text-center opacity-70 border-2 border-dashed border-base-300 rounded-xl mx-2">
-                        <i class="fa-solid fa-robot text-3xl mb-2 text-primary"></i>
-                        <p class="text-sm mb-3">暂无智能体</p>
-                        <button @click="createDemoAgents" class="btn btn-sm btn-primary">
-                            <i class="fa-solid fa-magic"></i> 一键生成示例
-                        </button>
+                    </label>
+                    <div v-if="agents.length === 0" class="text-center p-4 opacity-50 text-sm">
+                        暂无智能体，请先去配置
                     </div>
                 </div>
             </div>
 
              <!-- Agents Management List -->
-             <div v-if="currentTab === 'agents'" class="flex-1 overflow-y-auto p-2">
+             <div v-show="currentTab === 'agents'" class="flex-1 overflow-y-auto p-2">
                 <div class="space-y-3">
-                    <div v-for="agent in agents" :key="agent.id" class="card bg-base-100 shadow-sm border border-base-200 compact">
+                    <div v-for="agent in agents" :key="agent.id" class="card bg-base-100 shadow-sm border border-base-200 compact group">
                         <div class="card-body p-4">
                             <div class="flex justify-between items-start">
                                 <h3 class="card-title text-base">{{ agent.name }}</h3>
-                                <div class="flex gap-1">
-                                    <button @click="editAgent(agent)" class="btn btn-ghost btn-xs text-info"><i class="fa-solid fa-pen"></i></button>
-                                    <button @click="deleteAgent(agent.id)" class="btn btn-ghost btn-xs text-error"><i class="fa-solid fa-trash"></i></button>
+                                <div class="flex gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button @click="duplicateAgent(agent)" class="btn btn-ghost btn-xs text-secondary" title="复制智能体"><i class="fa-solid fa-copy"></i></button>
+                                    <button @click="editAgent(agent)" class="btn btn-ghost btn-xs text-info" title="编辑"><i class="fa-solid fa-pen"></i></button>
+                                    <button @click="deleteAgent(agent.id)" class="btn btn-ghost btn-xs text-error" title="删除"><i class="fa-solid fa-trash"></i></button>
                                 </div>
                             </div>
                             <p class="text-xs opacity-70 line-clamp-2">{{ agent.system_message }}</p>
@@ -118,7 +116,7 @@
         <div class="flex-1 flex flex-col bg-base-100 relative">
             
             <!-- Chat View -->
-            <div v-if="currentTab === 'chat'" class="flex-1 flex flex-col h-full">
+            <div v-show="currentTab === 'chat'" class="flex-1 flex flex-col h-full">
                 <!-- Chat Header -->
                 <div class="navbar bg-base-100 border-b border-base-200 px-4 min-h-[4rem]">
                     <div class="flex-1">
@@ -163,43 +161,24 @@
 
                 <!-- Input Area -->
                 <div class="p-4 bg-base-100 border-t border-base-200">
-                    <div class="relative">
-                        <textarea v-model="userInput" 
-                                  @keydown.enter.exact.prevent="sendMessage"
-                                  @keydown.ctrl.enter="userInput += '\n'"
-                                  @input="adjustTextareaHeight"
-                                  ref="inputBox"
-                                  placeholder="描述您的任务... (Enter 发送, Ctrl+Enter 换行)" 
-                                  class="textarea textarea-bordered w-full resize-none min-h-[3.5rem] max-h-48 pr-24 leading-normal focus:outline-none text-base py-3"
-                                  rows="1"></textarea>
-                        
-                        <div class="absolute bottom-2 right-2 flex gap-2">
-                             <button @click="sendMessage" :disabled="isSending || !userInput.trim() || selectedAgentIds.length === 0" 
-                                class="btn btn-primary btn-sm h-10 px-4 shadow-lg transition-all hover:scale-105">
-                                <span v-if="!isSending" class="flex items-center gap-2">
-                                    发送 <i class="fa-solid fa-paper-plane"></i>
-                                </span>
-                                <span v-else class="loading loading-spinner loading-xs"></span>
-                            </button>
-                        </div>
+                    <div class="flex gap-2">
+                        <textarea v-model="userInput" @keydown="handleKeydown"
+                                  placeholder="Type your message here... (Enter to send, Shift+Enter for new line)" 
+                                  class="textarea textarea-bordered flex-1 resize-none h-14 focus:outline-none leading-normal py-2"></textarea>
+                        <button @click="sendMessage" :disabled="isSending || !userInput.trim() || selectedAgentIds.length === 0" 
+                                class="btn btn-primary h-14 w-20">
+                            <i v-if="!isSending" class="fa-solid fa-paper-plane"></i>
+                            <span v-else class="loading loading-spinner"></span>
+                        </button>
                     </div>
-                    
-                    <div class="flex justify-between items-center mt-2 px-1">
-                        <div v-if="selectedAgentIds.length === 0" class="text-error text-xs flex items-center animate-bounce">
-                            <i class="fa-solid fa-circle-exclamation mr-1"></i> 请先在左侧选择至少一个智能体
-                        </div>
-                        <div v-else class="text-xs opacity-50">
-                            已选择 {{ selectedAgentIds.length }} 个智能体
-                        </div>
-                        <div class="text-xs opacity-40">
-                            Power by AutoGen & DeepSeek
-                        </div>
+                    <div v-if="selectedAgentIds.length === 0" class="text-error text-xs mt-1">
+                        * 请至少选择一个智能体参与对话
                     </div>
                 </div>
             </div>
 
             <!-- Agents Config View (Empty State for right side when in Agents tab) -->
-            <div v-if="currentTab === 'agents'" class="flex-1 flex items-center justify-center bg-base-200/50">
+            <div v-show="currentTab === 'agents'" class="flex-1 flex items-center justify-center bg-base-200/50">
                 <div class="text-center opacity-40">
                     <i class="fa-solid fa-arrow-left text-4xl mb-4"></i>
                     <p>在左侧管理您的智能体</p>
@@ -211,7 +190,17 @@
         <!-- Create/Edit Agent Modal -->
         <dialog id="agent_modal" class="modal">
             <div class="modal-box w-11/12 max-w-2xl">
-                <h3 class="font-bold text-lg mb-4">{{ isEditing ? '编辑智能体' : '新建智能体' }}</h3>
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-lg">{{ isEditing ? '编辑智能体' : '新建智能体' }}</h3>
+                    <div class="dropdown dropdown-end">
+                        <div tabindex="0" role="button" class="btn btn-xs btn-outline">快速模板</div>
+                        <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
+                            <li v-for="(tpl, name) in templates" :key="name">
+                                <a @click="applyTemplate(tpl)">{{ name }}</a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <!-- Basic Info -->
@@ -283,6 +272,13 @@
 
     <script>
         const { createApp, ref, onMounted, computed, nextTick } = Vue;
+        // Check if dependencies loaded
+        if (!window.Vue || !window.axios || !window.markdownit) {
+            document.getElementById('error-overlay').style.display = 'block';
+            document.getElementById('error-overlay').innerHTML = '<h3>Critical Error: Dependencies failed to load. Please check your internet connection.</h3>';
+            throw new Error('Dependencies missing');
+        }
+
         const md = window.markdownit();
 
         // API Configuration
@@ -326,67 +322,8 @@
 
                 // Refs
                 const chatContainer = ref(null);
-                const inputBox = ref(null);
 
                 // Methods
-                const adjustTextareaHeight = () => {
-                    const el = inputBox.value;
-                    if (el) {
-                        el.style.height = 'auto';
-                        el.style.height = Math.min(el.scrollHeight, 192) + 'px'; // Max 12rem (48 * 4px)
-                    }
-                };
-
-                const toggleSelection = (id) => {
-                    const idx = selectedAgentIds.value.indexOf(id);
-                    if (idx > -1) {
-                        selectedAgentIds.value.splice(idx, 1);
-                    } else {
-                        selectedAgentIds.value.push(id);
-                    }
-                };
-
-                const toggleSelectAll = () => {
-                    if (selectedAgentIds.value.length === agents.value.length) {
-                        selectedAgentIds.value = [];
-                    } else {
-                        selectedAgentIds.value = agents.value.map(a => a.id);
-                    }
-                };
-
-                const createDemoAgents = async () => {
-                    loadingAgents.value = true;
-                    try {
-                        const demos = [
-                            {
-                                name: "Product_Manager",
-                                system_message: "你是一个专业的产品经理。你的职责是分析用户需求，将其转化为清晰的功能列表和验收标准。请用简洁、结构化的语言输出。",
-                                config: { description: "负责需求分析和产品定义", temperature: 0.7 }
-                            },
-                            {
-                                name: "Python_Coder",
-                                system_message: "你是一个高级 Python 工程师。根据需求编写高质量、可运行的 Python 代码。代码必须包含注释，并遵循 PEP8 规范。请只输出代码和必要的解释。",
-                                config: { description: "负责编写 Python 代码", temperature: 0.2 }
-                            },
-                            {
-                                name: "Code_Reviewer",
-                                system_message: "你是一个严格的代码审查员。检查代码的安全性、效率和规范性。如果发现问题，请明确指出并提供修改建议。如果代码完美，请回复'LGTM'。",
-                                config: { description: "负责代码审查", temperature: 0.5 }
-                            }
-                        ];
-
-                        for (const agent of demos) {
-                            await axios.post(`${API_BASE}/agents`, agent);
-                        }
-                        await fetchAgents();
-                        showToast('已成功创建示例智能体团队！', 'success');
-                    } catch (e) {
-                        showToast('创建失败: ' + e.message, 'error');
-                    } finally {
-                        loadingAgents.value = false;
-                    }
-                };
-
                 const showToast = (msg, type = 'info') => {
                     toast.value = { show: true, message: msg, type };
                     setTimeout(() => toast.value.show = false, 3000);
@@ -403,6 +340,7 @@
                         }
                     } catch (e) {
                         showToast('Failed to load agents: ' + e.message, 'error');
+                        console.error(e);
                     } finally {
                         loadingAgents.value = false;
                     }
@@ -451,7 +389,6 @@
 
                     try {
                         if (isEditing.value) {
-                            // Delete old and create new (simplest update strategy for this demo)
                             await axios.delete(`${API_BASE}/agents/${form.value.id}`);
                         }
                         
@@ -495,9 +432,6 @@
 
                     isSending.value = true;
                     scrollToBottom();
-                    
-                    // Reset textarea height
-                    if(inputBox.value) inputBox.value.style.height = 'auto';
 
                     try {
                         const res = await axios.post(`${API_BASE}/chat`, {
@@ -505,12 +439,8 @@
                             agent_ids: selectedAgentIds.value
                         });
                         
-                        // Append responses
                         if (res.data.messages && Array.isArray(res.data.messages)) {
-                            // Filter out internal system messages if needed, keeping relevant ones
-                            // For now, we append all new messages except the first user one (duplicates)
                             const newMessages = res.data.messages.filter((m, idx) => {
-                                // Simple filter to avoid showing the user prompt again if AutoGen returns it
                                 return !(m.role === 'user' && m.content === text);
                             });
                             messages.value.push(...newMessages);
@@ -549,6 +479,56 @@
                     return md.render(text || '');
                 };
 
+                // Templates
+                const templates = {
+                    'Coder': {
+                        name: 'Coder',
+                        system_message: 'You are a skilled Python developer. You write clean, efficient code. When asked to write code, output the code in a code block.',
+                        config: { description: 'Writes code to solve problems.', human_input_mode: 'NEVER', max_consecutive_auto_reply: 10, temperature: 0.2 }
+                    },
+                    'Product Manager': {
+                        name: 'Product Manager',
+                        system_message: 'You are a Product Manager. You analyze requirements, propose features, and ensure the product meets user needs.',
+                        config: { description: 'Plans features and requirements.', human_input_mode: 'NEVER', max_consecutive_auto_reply: 10, temperature: 0.7 }
+                    },
+                    'Writer': {
+                        name: 'Writer',
+                        system_message: 'You are a creative writer. You write engaging content, blog posts, and stories.',
+                        config: { description: 'Writes content.', human_input_mode: 'NEVER', max_consecutive_auto_reply: 10, temperature: 0.8 }
+                    }
+                };
+
+                const toggleSelectAll = () => {
+                    if (selectedAgentIds.value.length === agents.value.length) {
+                        selectedAgentIds.value = [];
+                    } else {
+                        selectedAgentIds.value = agents.value.map(a => a.id);
+                    }
+                };
+
+                const duplicateAgent = async (agent) => {
+                    try {
+                        await axios.post(`${API_BASE}/agents/${agent.id}/duplicate`);
+                        showToast(`Agent ${agent.name} duplicated`, 'success');
+                        fetchAgents();
+                    } catch (e) {
+                        showToast('Error duplicating agent: ' + e.message, 'error');
+                    }
+                };
+
+                const applyTemplate = (tpl) => {
+                    form.value.name = tpl.name;
+                    form.value.system_message = tpl.system_message;
+                    form.value.config = { ...tpl.config };
+                };
+                
+                const handleKeydown = (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessage();
+                    }
+                };
+
                 // Lifecycle
                 onMounted(() => {
                     fetchAgents();
@@ -566,7 +546,7 @@
                     form,
                     toast,
                     chatContainer,
-                    inputBox,
+                    templates,
                     // methods
                     fetchAgents,
                     openCreateModal,
@@ -578,10 +558,10 @@
                     clearChat,
                     formatTime,
                     renderMarkdown,
-                    toggleSelection,
                     toggleSelectAll,
-                    adjustTextareaHeight,
-                    createDemoAgents
+                    duplicateAgent,
+                    applyTemplate,
+                    handleKeydown
                 };
             }
         }).mount('#app');
