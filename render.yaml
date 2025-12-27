@@ -1,11 +1,12 @@
 services:
   - type: web
     name: autogen-demo
-    env: python
-    buildCommand: pip install -r backend/requirements.txt
-    startCommand: gunicorn --chdir backend --bind 0.0.0.0:10000 app:app
+    env: docker
+    dockerfilePath: Dockerfile
     envVars:
       - key: DEEPSEEK_API_KEY
         sync: false
       - key: DATABASE_URL
-        value: sqlite:///autogen.db
+        value: sqlite:////app/backend/autogen.db
+      - key: PORT
+        value: 10000
