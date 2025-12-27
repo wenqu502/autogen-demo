@@ -51,11 +51,6 @@ def login_required(f):
 def index():
     return render_template('index.html')
 
-# 服务 React 构建后的静态资源 (Vite 默认输出到 assets 目录)
-@app.route('/assets/<path:path>')
-def send_assets(path):
-    return send_from_directory('static/assets', path)
-
 # --- Auth Routes ---
 @app.route('/api/register', methods=['POST'])
 def register():
