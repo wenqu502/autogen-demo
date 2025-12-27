@@ -4,5 +4,6 @@ flask-sqlalchemy
 sqlalchemy
 psycopg2-binary
 python-dotenv
-pyautogen
+pyautogen>=0.2.0
+openai>=1.0.0
 gunicorn
