@@ -591,7 +591,25 @@
                             fetchConversations();
                         }
                     } catch (e) {
-                        showToast(e.response?.data?.error || '操作失败', 'error');
+                        console.error(e);
+                        let msg = '操作失败';
+                        if (e.response) {
+                            // Server responded with a status code out of 2xx range
+                            msg = `失败 (${e.response.status}): `;
+                            if (e.response.data && e.response.data.error) {
+                                msg += e.response.data.error;
+                            } else if (e.response.data && e.response.data.message) {
+                                msg += e.response.data.message;
+                            } else {
+                                msg += e.message || '未知错误';
+                            }
+                        } else if (e.request) {
+                            // Request was made but no response received
+                            msg = '网络错误: 无法连接到服务器';
+                        } else {
+                            msg = '错误: ' + e.message;
+                        }
+                        showToast(msg, 'error');
                     } finally {
                         authLoading.value = false;
                     }
@@ -610,7 +628,14 @@
                         createNewConversation(); // Start fresh
                         showToast('已进入访客模式，数据不会保存', 'warning');
                     } catch (e) {
-                        showToast('访客登录失败', 'error');
+                        console.error(e);
+                        let msg = '访客登录失败';
+                        if (e.response) {
+                             msg += ` (${e.response.status}): ${e.response.data?.error || e.response.data?.message || e.message}`;
+                        } else {
+                             msg += ': 网络连接异常';
+                        }
+                        showToast(msg, 'error');
                     } finally {
                         authLoading.value = false;
                     }
