@@ -898,9 +898,15 @@
                             // Try to get detailed error from backend
                             let errorDetail = '';
                             try {
-                                const errJson = await response.json();
-                                errorDetail = errJson.message || errJson.error || '';
-                            } catch (e) { /* ignore json parse error */ }
+                                const errText = await response.text();
+                                try {
+                                    const errJson = JSON.parse(errText);
+                                    errorDetail = errJson.message || errJson.error || JSON.stringify(errJson);
+                                } catch (e) {
+                                    // Not JSON, use text directly (truncated)
+                                    errorDetail = errText.substring(0, 200); 
+                                }
+                            } catch (e) { /* ignore read error */ }
                             
                             throw new Error(`发送失败 (${response.status}): ${errorDetail}`);
                         }

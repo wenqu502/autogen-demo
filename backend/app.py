@@ -12,8 +12,7 @@ load_dotenv()
 
 import logging
 import traceback
-
-# ... (existing imports)
+from werkzeug.exceptions import HTTPException
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -36,8 +35,6 @@ def handle_exception(e):
         "message": str(e),
         "traceback": traceback.format_exc()
     }), 500
-
-from werkzeug.exceptions import HTTPException
 
 app.secret_key = os.environ.get('SECRET_KEY', 'dev_secret_key') # 必须设置 secret_key 才能使用 session
 CORS(app, supports_credentials=True) # 允许跨域携带 cookie
