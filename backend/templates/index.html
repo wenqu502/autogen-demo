@@ -496,11 +496,9 @@
 
         // API Configuration
         const getApiBase = () => {
-            const hostname = window.location.hostname;
-            if (hostname === '127.0.0.1' || hostname === 'localhost') {
-                return '/api';
-            }
-            return 'https://autogen-demo-4tl4.onrender.com/api';
+            // 在生产环境中（同源部署），直接使用相对路径 /api
+            // 这样无论域名是什么（Render原域名或自定义域名），请求都会发给当前后端
+            return '/api';
         };
         const API_BASE = getApiBase();
 
