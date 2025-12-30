@@ -140,7 +140,9 @@ def run_streaming_chat(agents_config, user_input, history=None, max_round=10):
                 break
             
             if "error" in msg:
-                yield f"data: {json.dumps({'error': msg['error']})}\n\n"
+                # 捕获并格式化详细错误信息
+                error_msg = msg['error']
+                yield f"data: {json.dumps({'error': f'AutoGen Error: {error_msg}'})}\n\n"
             else:
                 # 过滤掉刚才用户发送的消息 (因为前端已经有了)
                 # 只有当它是新生成的消息时才发送
