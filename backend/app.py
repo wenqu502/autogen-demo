@@ -10,7 +10,35 @@ from functools import wraps
 
 load_dotenv()
 
+import logging
+import traceback
+
+# ... (existing imports)
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__, static_folder='static', template_folder='templates')
+
+# Global Error Handler
+@app.errorhandler(Exception)
+def handle_exception(e):
+    # Pass through HTTP errors
+    if isinstance(e, HTTPException):
+        return e
+
+    # Now you're handling non-HTTP exceptions only
+    logger.error(f"Unhandled Exception: {str(e)}")
+    logger.error(traceback.format_exc())
+    return jsonify({
+        "error": "Internal Server Error",
+        "message": str(e),
+        "traceback": traceback.format_exc()
+    }), 500
+
+from werkzeug.exceptions import HTTPException
+
 app.secret_key = os.environ.get('SECRET_KEY', 'dev_secret_key') # 必须设置 secret_key 才能使用 session
 CORS(app, supports_credentials=True) # 允许跨域携带 cookie
 

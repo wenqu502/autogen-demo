@@ -870,7 +870,14 @@
                                 isLoggedIn.value = false;
                                 throw new Error("登录已过期");
                             }
-                            throw new Error(`HTTP error! status: ${response.status}`);
+                            // Try to get detailed error from backend
+                            let errorDetail = '';
+                            try {
+                                const errJson = await response.json();
+                                errorDetail = errJson.message || errJson.error || '';
+                            } catch (e) { /* ignore json parse error */ }
+                            
+                            throw new Error(`发送失败 (${response.status}): ${errorDetail}`);
                         }
 
                         // Create a placeholder message for the assistant response if not exists
