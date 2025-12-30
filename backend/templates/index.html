@@ -935,6 +935,9 @@
                                     try {
                                         const msg = JSON.parse(jsonStr);
                                         
+                                        // Ignore ping messages
+                                        if (msg.type === 'ping') continue;
+
                                         if (msg.error) {
                                             messages.value.push({ role: 'system', content: `Error: ${msg.error}`, timestamp: new Date().toISOString() });
                                             continue;

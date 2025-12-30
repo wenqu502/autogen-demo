@@ -459,5 +459,25 @@ def chat_stream():
 
     return Response(stream_with_context(generate()), mimetype='text/event-stream')
 
+@app.route('/api/debug', methods=['GET'])
+def debug_info():
+    try:
+        import autogen
+        import openai
+        import pydantic
+        return jsonify({
+            "status": "ok",
+            "autogen_version": getattr(autogen, "__version__", "unknown"),
+            "openai_version": getattr(openai, "__version__", "unknown"),
+            "pydantic_version": getattr(pydantic, "__version__", "unknown"),
+            "env_api_key_present": bool(os.environ.get("DEEPSEEK_API_KEY"))
+        })
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
+
 if __name__ == '__main__':
     app.run(debug=True, port=5001)

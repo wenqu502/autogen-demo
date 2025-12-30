@@ -125,6 +125,9 @@ def run_streaming_chat(agents_config, user_input, history=None, max_round=10):
     thread.start()
 
     # 6. 主线程流式返回
+    # 立即发送一个 ping 消息，防止 Gunicorn 超时
+    yield f"data: {json.dumps({'type': 'ping', 'content': 'connected'})}\n\n"
+
     first_msg = True
     while True:
         try:
