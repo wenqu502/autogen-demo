@@ -32,7 +32,8 @@ def run_streaming_chat(agents_config, user_input, history=None, max_round=10):
     
     api_key = os.environ.get("DEEPSEEK_API_KEY")
     if not api_key:
-        yield json.dumps({"error": "DEEPSEEK_API_KEY not found"})
+        yield f"data: {json.dumps({'error': '配置错误: 未找到 DEEPSEEK_API_KEY 环境变量'})}\n\n"
+        yield "data: [DONE]\n\n"
         return
 
     base_llm_config = {
